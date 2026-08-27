@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:novim-custom:task.schema.json",
+  "title": "novim-custom task record",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "taskId",
+    "status",
+    "outcome",
+    "acceptanceCriteria"
+  ],
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "pattern": "^TASK-[0-9]{3}$"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "PROPOSED",
+        "PLANNED",
+        "IN_PROGRESS",
+        "READY_FOR_REVIEW",
+        "CHANGES_REQUESTED",
+        "BLOCKED",
+        "ACCEPTED"
+      ]
+    },
+    "outcome": {
+      "type": "string",
+      "minLength": 1
+    },
+    "acceptanceCriteria": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "baseBranch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "taskBranch": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

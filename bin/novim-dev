@@ -1,0 +1,88 @@
+#!/bin/bash
+# novim-dev - Development launcher for custom novim checkout
+# https://github.com/link2004/novim (custom derivative)
+
+set -euo pipefail
+
+# 1. Ensure nvim exists
+if ! command -v nvim &> /dev/null; then
+  echo "Error: Neovim is not installed." >&2
+  echo "Install it with: brew install neovim" >&2
+  exit 1
+fi
+
+# 2. Setup paths (robustly resolve symlinks across macOS and Linux)
+resolve_target() {
+  local target="$1"
+  if [[ "$target" != /* ]]; then
+    if [[ "$target" == */* ]]; then
+      target="$(pwd -P)/$target"
+    else
+      target="$(command -v "$target" || echo "$target")"
+      [[ "$target" != /* ]] && target="$(pwd -P)/$target"
+    fi
+  fi
+
+  if command -v realpath >/dev/null 2>&1; then
+    realpath "$target"
+  else
+    while [[ -L "$target" ]]; do
+      local link
+      link="$(readlink "$target")"
+      if [[ "$link" == /* ]]; then
+        target="$link"
+      else
+        target="$(cd "$(dirname "$target")" && pwd -P)/$link"
+      fi
+    done
+    echo "$target"
+  fi
+}
+
+SCRIPT_PATH="$(resolve_target "$0")"
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+NOVIM_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
+NOVIM_CONFIG="$NOVIM_ROOT/config"
+
+# Read version from VERSION file if present
+BASE_VERSION="0.1.0"
+if [[ -f "$NOVIM_ROOT/VERSION" ]]; then
+  BASE_VERSION="$(tr -d '[:space:]' < "$NOVIM_ROOT/VERSION")"
+fi
+DEV_VERSION="${BASE_VERSION}-dev"
+
+# 3. Handle flags
+if [[ "${1:-}" == "--version" || "${1:-}" == "-v" ]]; then
+  echo "novim-dev $DEV_VERSION (custom checkout)"
+  echo "powered by $(nvim --version | head -1)"
+  exit 0
+fi
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  echo "novim-dev - Development launcher for custom novim checkout"
+  echo ""
+  echo "Usage: novim-dev [options] [file...]"
+  echo ""
+  echo "Options:"
+  echo "  -v, --version    Show development version and Neovim engine"
+  echo "  -h, --help       Show this help"
+  echo ""
+  echo "All other options and arguments are passed directly to Neovim."
+  echo "Configuration root: $NOVIM_CONFIG"
+  echo "Runtime state:      $NOVIM_ROOT/.dev-state"
+  echo "Runtime data:       $NOVIM_ROOT/.dev-data"
+  echo "Runtime cache:      $NOVIM_ROOT/.dev-cache"
+  exit 0
+fi
+
+# 4. Export isolated runtime paths
+export XDG_CONFIG_HOME="$NOVIM_CONFIG"
+export XDG_DATA_HOME="$NOVIM_ROOT/.dev-data"
+export XDG_STATE_HOME="$NOVIM_ROOT/.dev-state"
+export XDG_CACHE_HOME="$NOVIM_ROOT/.dev-cache"
+
+# Ensure isolated directories exist
+mkdir -p "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
+
+# 5. Launch Neovim
+exec nvim "$@"
