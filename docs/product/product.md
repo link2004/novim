@@ -40,6 +40,11 @@ personal Neovim configuration.
 - Keep the initial Git surface read-only: status, history, and diff inspection
   are in scope; stage, unstage, commit, push, merge, rebase, and discard are
   out of scope.
+- Use the working tree compared with `HEAD` as the initial diff baseline, and
+  include untracked files in the review surface.
+- Persist display settings locally between launches.
+- Hide dot-prefixed files and folders by default, with a settings toggle to
+  reveal them; no special allowlist is required in the first slice.
 - Keep the initial feature set self-contained; no plugin manager or third-party
   Neovim plugin is required for the planned workbench.
 - Make every new workflow observable and testable from a local terminal.
@@ -58,12 +63,6 @@ personal Neovim configuration.
 
 ## Open product decisions
 
-The first grill resolved the major product direction. The following details
-remain open because they change the implementation contract:
-
-1. Diff comparison targets: working tree versus `HEAD` first, or also selected
-   commits/branches in the first diff slice.
-2. Settings persistence: session-only display settings, or a small local
-   config file persisted between launches.
-3. Dot-folder semantics: hide all dot-prefixed entries by default, or maintain
-   an explicit always-visible allowlist such as `.gitignore` and `.env.example`.
+The initial product decisions are resolved. Comparing selected branches or
+historical commits can be considered after the first workbench slice, but is
+not part of its initial contract.

@@ -30,9 +30,9 @@ Last merged pull request: `NONE`
 
 ## Active blockers
 
-- None for `TASK-001`.
-- Before `TASK-002` is issued, the diff baseline and settings persistence model
-  must be fixed. Dot-folder default/allowlist semantics also need confirmation.
+- None for `TASK-001` or the currently defined feature direction.
+- `TASK-002` and `TASK-003` remain proposed until `TASK-001` is implemented,
+  locally reviewed, and accepted.
 
 ## Next orchestration action
 

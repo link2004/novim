@@ -22,6 +22,11 @@ The initial Git surface is read-only. Status, history, and diff inspection are
 allowed; stage, unstage, commit, push, merge, rebase, discard, and other Git
 mutations are not part of the initial scope.
 
+The first diff baseline is the working tree versus `HEAD`, including untracked
+files. Display settings persist locally between launches. Dot-prefixed files
+and folders are hidden by default and can be revealed through the settings
+toggle; there is no first-slice allowlist.
+
 ## Rationale
 
 The primary need is to understand repository structure and verify changes in a
@@ -33,7 +38,7 @@ without helping the first inspection workflow.
 - `TASK-002` can be evaluated using screenshots/interaction checks and local
   diff fixtures without requiring commit or remote credentials.
 - The UI must clearly distinguish source-on-disk from changed/diff views.
-- The exact comparison baseline and settings persistence behavior remain
-  implementation decisions to resolve before `TASK-002` is issued.
+- Branch and historical-commit comparisons are deliberately deferred until
+  after the first workbench slice.
 - Plugin installation and plugin lifecycle are not hidden dependencies of the
   first workbench.

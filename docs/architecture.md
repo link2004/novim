@@ -55,11 +55,14 @@ After bootstrap, the target product direction is a read-only diff workbench:
 - settings: an in-app menu/panel, beginning with dot-folder visibility;
 - Git: local status/history/diff inspection only, with no stage, commit, push,
   discard, or other repository mutation;
+- initial diff baseline: working tree versus `HEAD`, including untracked files;
+- settings: persisted locally between launches;
+- dot-folders: hidden by default and revealed through a settings toggle;
 - extensions: no plugin manager or third-party plugin dependency for the first
   workbench slices.
 
-The exact diff baseline and settings persistence model remain open and must be
-resolved before the corresponding implementation task is issued.
+Selected branch or historical-commit comparisons are future scope and are not
+required for the first workbench slice.
 
 ## Preserved contracts
 
