@@ -4,3 +4,8 @@
 # Neovim runtime files
 config/data/
 config/state/
+
+# Development runtime files (novim-dev)
+.dev-data/
+.dev-state/
+.dev-cache/

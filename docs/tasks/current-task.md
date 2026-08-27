@@ -2,7 +2,7 @@
 
 Updated: 2026-08-27
 Task ID: `TASK-001`
-Status: `PLANNED`
+Status: `READY_FOR_REVIEW`
 Delivery policy: `LIGHTWEIGHT`
 Base branch: `main`
 Task branch: `task/TASK-001-dev-command`
@@ -45,18 +45,18 @@ launcher are needed before making custom behavior changes safely.
 
 ## Acceptance criteria
 
-- [ ] `novim-dev --version` resolves to the development launcher and exits
+- [x] `novim-dev --version` resolves to the development launcher and exits
       successfully without a network request.
-- [ ] `novim-dev --headless '+qa'` (or an equivalent non-interactive smoke
+- [x] `novim-dev --headless '+qa'` (or an equivalent non-interactive smoke
       command) loads this checkout's config successfully.
-- [ ] Launching from a directory outside the repository still uses the
+- [x] Launching from a directory outside the repository still uses the
       checkout's `config/nvim/init.lua`.
-- [ ] Development runtime data/state paths are distinct from the installed
+- [x] Development runtime data/state paths are distinct from the installed
       `novim` paths and from the user's normal Neovim paths.
-- [ ] `novim --version` continues to report the installed upstream release.
-- [ ] A local install/link instruction for `novim-dev` is documented and does
+- [x] `novim --version` continues to report the installed upstream release.
+- [x] A local install/link instruction for `novim-dev` is documented and does
       not overwrite `~/.local/bin/novim`.
-- [ ] The task diff contains no unrelated feature or upstream-site changes.
+- [x] The task diff contains no unrelated feature or upstream-site changes.
 
 ## Decision guardrails
 
@@ -97,15 +97,23 @@ launcher are needed before making custom behavior changes safely.
 
 ## Implementer handoff
 
-- Status: `NOT_STARTED`
-- Summary: None
-- Files changed: None
-- Validation: Not run
-- Acceptance evidence: None
-- Residual risks: The exact runtime directory convention is an implementation
-  detail constrained by the isolation criteria above.
-- Candidate commit or diff: None; use `HEAD (handoff commit)` when this file
-  will be included in that commit.
+- Status: `READY_FOR_REVIEW`
+- Summary: Implemented `bin/novim-dev` launcher with dynamic symlink-safe checkout root resolution and path isolation (`XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, `XDG_CACHE_HOME`). Added dev runtime directories to `.gitignore` and documented linking in `docs/architecture.md`. Verified that installed `novim` remains untouched.
+- Files changed:
+  - `bin/novim-dev` (new executable wrapper)
+  - `.gitignore` (ignore `.dev-data/`, `.dev-state/`, `.dev-cache/`)
+  - `docs/architecture.md` (documented launcher contract and link instructions)
+  - `docs/tasks/current-task.md` (acceptance criteria and handoff)
+- Validation:
+  - `bash -n bin/novim-dev`: syntax valid
+  - `./bin/novim-dev --version` & `--help`: valid output, non-networking, exit 0
+  - `./bin/novim-dev --headless "+lua print('LOADED: ' .. vim.g.colors_name)" +qa`: loaded `tokyonight`
+  - stdpath isolation check: config under `config/`, data/state/cache under `.dev-*/`
+  - `/tmp` execution test via absolute path and symlink: both resolved config to checkout
+  - `novim --version`: unchanged at `/Users/mert/.local/bin/novim` (0.1.7)
+- Acceptance evidence: All 7 criteria verified locally.
+- Residual risks: None.
+- Candidate commit or diff: `HEAD (handoff commit)`
 
 ## Delivery gate
 

@@ -38,13 +38,26 @@ The repository is a direct clone of upstream novim at tag `v0.1.7`.
   development command must not reuse those network-capable behaviors by
   default.
 
-## Planned development boundary
+## Development boundary and launcher
 
-`TASK-001` will add a repository-local development launcher and a separate
-`novim-dev` command. The launcher will use this checkout's `config/nvim` while
-keeping writable data/state separate from upstream `novim`. It will not change
-the upstream command or add product features yet.
+`TASK-001` adds a dedicated repository-local launcher via `bin/novim-dev`:
+- Resolves its repository root dynamically through symlinks and from any working directory.
+- Sets `XDG_CONFIG_HOME` to this checkout's `config` directory (`config/nvim/init.lua`).
+- Sets separate runtime paths `XDG_DATA_HOME` (`.dev-data/`), `XDG_STATE_HOME` (`.dev-state/`), and `XDG_CACHE_HOME` (`.dev-cache/`) inside the checkout root, keeping runtime state strictly isolated from installed `novim` and standard Neovim configurations.
+- Excludes networking, update, and uninstallation routines.
+- Forwards arbitrary Neovim flags (e.g. `--headless`, buffers, files) to `nvim`.
 
+### Local installation / linking
+
+To make `novim-dev` accessible from any terminal without overwriting the installed `novim`:
+
+```bash
+ln -sf /Users/mert/novim-custom/bin/novim-dev ~/.local/bin/novim-dev
+```
+
+Verification:
+- `novim-dev --version` reports the development launcher without network activity.
+- `novim --version` continues to invoke the upstream release at `~/.local/bin/novim`.
 ## Accepted target direction
 
 After bootstrap, the target product direction is a read-only diff workbench:
