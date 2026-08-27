@@ -7,7 +7,7 @@ Statuses: `PROPOSED`, `PLANNED`, `IN_PROGRESS`, `READY_FOR_REVIEW`,
 
 | Priority | ID | Vertical slice | Status | Dependency |
 |---:|---|---|---|---|
-| 1 | TASK-001 | Run this checkout through an isolated `novim-dev` command without changing installed `novim` | PLANNED | None |
+| 1 | TASK-001 | Run this checkout through an isolated `novim-dev` command without changing installed `novim` | READY_FOR_REVIEW | None |
 | 2 | TASK-002 | Inspect the working tree versus `HEAD` in a two-pane, mouse-resizable read-only workbench, including untracked files | PROPOSED | TASK-001 |
 | 3 | TASK-003 | Browse project files with dot-folders hidden by default and a persistent settings toggle | PROPOSED | TASK-001 |
 | 4 | TASK-004 | Open source files and move between file tree, changed files, and diff context | PROPOSED | TASK-002, TASK-003 |
