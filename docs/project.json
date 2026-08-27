@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "1.0",
+  "project": {
+    "name": "novim-custom",
+    "purpose": "A terminal-first novim derivative for focused repository navigation, code inspection, and local Git review.",
+    "lifecycle": "BOOTSTRAPPING",
+    "deliveryPolicy": "LIGHTWEIGHT"
+  },
+  "repository": {
+    "localPath": "/Users/mert/novim-custom",
+    "baseBranch": "main",
+    "taskBranch": "task/TASK-001-dev-command",
+    "upstreamUrl": "https://github.com/link2004/novim.git",
+    "currentRemoteName": "origin",
+    "baselineCommit": "8e36d447ee9c73d29b75f3dfc50db9452a2addf1",
+    "baselineTag": "v0.1.7",
+    "githubForkCreated": false
+  },
+  "runtime": {
+    "installedCommand": "novim",
+    "developmentCommand": "novim-dev",
+    "developmentCommandStatus": "planned",
+    "developmentCommandTask": "TASK-001"
+  },
+  "workflow": {
+    "currentTask": "TASK-001",
+    "currentTaskStatus": "PLANNED",
+    "pullRequest": null,
+    "remoteChecks": "OPTIONAL / NOT_RUN",
+    "lastAcceptedTask": null
+  },
+  "canonicalDocs": {
+    "repository": "docs/repository.md",
+    "product": "docs/product/product.md",
+    "architecture": "docs/architecture.md",
+    "projectState": "project-state.md",
+    "backlog": "docs/tasks/backlog.md",
+    "currentTask": "docs/tasks/current-task.md",
+    "latestReview": "docs/reviews/latest-review.md",
+    "decisions": "docs/adr/",
+    "taskSchema": "docs/tasks/task.schema.json"
+  },
+  "openDecisions": [
+    "first high-value workflow",
+    "Git mutation authority boundary",
+    "plugin-backed versus self-contained configuration policy"
+  ]
+}
