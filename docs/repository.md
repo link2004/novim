@@ -39,14 +39,17 @@ created.
 
 - Purpose: Maintain a user-specific, terminal-first novim derivative with a
   separate development command and focused usability improvements.
-- Source baseline: `https://github.com/link2004/novim`, currently cloned as
-  remote `origin` at tag `v0.1.7`, commit `8e36d447ee9c73d29b75f3dfc50db9452a2addf1`.
+- Source baseline: `https://github.com/link2004/novim`, currently cloned at
+  tag `v0.1.7`, commit `8e36d447ee9c73d29b75f3dfc50db9452a2addf1`.
 - Local checkout assumption: `/Users/mert/novim-custom`.
 - Runtime and commands: upstream `bin/novim` launches Neovim with the bundled
-  `config/nvim` tree; the separate `novim-dev` command is planned in `TASK-001`.
-- Remote delivery: no GitHub fork or pull request has been created yet. Do not
-  push to the current `origin` until a fork remote and delivery intent are
-  explicitly established.
+  `config/nvim` tree; the separate `bin/novim-dev` command is available after
+  `TASK-001`.
+- Remote delivery: `origin` is the personal fork
+  `https://github.com/medonmez/novim-custom.git`; `upstream` is the official
+  source repository. TASK-001 was delivered through PR #1 and merged to
+  `origin/main`. Use a task branch and pull request for subsequent remote
+  delivery.
 - Deployment or release notes: local development only; no hosted or production
   deployment is claimed.
 - Sensitive-data boundaries: source and Git metadata are local. Do not put

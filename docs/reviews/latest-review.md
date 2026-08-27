@@ -7,13 +7,15 @@ Delivery policy: `LIGHTWEIGHT`
 Baseline: `03939c0`
 Candidate: `b8512b6`
 Task branch: `task/TASK-001-dev-command`
-Pull request: `NOT_OPEN`
+Pull request: `https://github.com/medonmez/novim-custom/pull/1`
 Remote checks: `OPTIONAL / NOT_RUN`
-Merge status: `NOT_MERGED`
+Merge status: `MERGED`
+Merge commit: `12327b78049e1348df858b589baf669ba451c090`
+Target branch contains change: `YES` (`origin/main`)
 
 ## Findings
 
-- No regressions or scope creep found.
+- No regressions or scope creep found in the real delivered diff.
 - `bin/novim-dev` implements robust dynamic symlink-safe checkout root resolution.
 - Path isolation (`XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, `XDG_CACHE_HOME`) ensures complete separation from installed `novim` and default user Neovim directories.
 - Runtime directories `.dev-data/`, `.dev-state/`, and `.dev-cache/` are added to `.gitignore`.
@@ -40,6 +42,14 @@ Merge status: `NOT_MERGED`
 - `./bin/novim-dev --headless` with stdpath queries: verified config, data, state, and cache isolation.
 - Outer directory execution test (`/tmp` direct + symlink): verified dynamic resolution.
 - Upstream check: verified `/Users/mert/.local/bin/novim` version.
+
+## Delivery verification
+
+- GitHub fork: `https://github.com/medonmez/novim-custom`
+- PR #1 was mergeable, had no required checks, and was merged into `main`.
+- `git fetch fork main` followed by `git merge --ff-only fork/main` placed the
+  verified merge on local `main`; remotes were then normalized to `origin`
+  (fork) and `upstream` (official repository).
 
 ## Required changes or blocker
 

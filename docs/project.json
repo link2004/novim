@@ -3,31 +3,36 @@
   "project": {
     "name": "novim-custom",
     "purpose": "A terminal-first novim derivative for focused repository navigation, code inspection, and local Git review.",
-    "lifecycle": "BOOTSTRAPPING",
+    "lifecycle": "ACTIVE_DEVELOPMENT",
     "deliveryPolicy": "LIGHTWEIGHT"
   },
   "repository": {
     "localPath": "/Users/mert/novim-custom",
     "baseBranch": "main",
-    "taskBranch": "task/TASK-001-dev-command",
+    "taskBranch": "task/TASK-002-diff-workbench",
     "upstreamUrl": "https://github.com/link2004/novim.git",
     "currentRemoteName": "origin",
+    "originUrl": "https://github.com/medonmez/novim-custom.git",
+    "upstreamRemoteName": "upstream",
+    "githubForkUrl": "https://github.com/medonmez/novim-custom",
     "baselineCommit": "8e36d447ee9c73d29b75f3dfc50db9452a2addf1",
     "baselineTag": "v0.1.7",
-    "githubForkCreated": false
+    "githubForkCreated": true
   },
   "runtime": {
     "installedCommand": "novim",
     "developmentCommand": "novim-dev",
-    "developmentCommandStatus": "planned",
+    "developmentCommandStatus": "available",
     "developmentCommandTask": "TASK-001"
   },
   "workflow": {
-    "currentTask": "TASK-001",
+    "currentTask": "TASK-002",
     "currentTaskStatus": "PLANNED",
     "pullRequest": null,
     "remoteChecks": "OPTIONAL / NOT_RUN",
-    "lastAcceptedTask": null
+    "lastAcceptedTask": "TASK-001",
+    "lastAcceptedCommit": "12327b78049e1348df858b589baf669ba451c090",
+    "lastMergedPullRequest": "https://github.com/medonmez/novim-custom/pull/1"
   },
   "canonicalDocs": {
     "repository": "docs/repository.md",

@@ -40,7 +40,7 @@ The repository is a direct clone of upstream novim at tag `v0.1.7`.
 
 ## Development boundary and launcher
 
-`TASK-001` adds a dedicated repository-local launcher via `bin/novim-dev`:
+`TASK-001` added a dedicated repository-local launcher via `bin/novim-dev`:
 - Resolves its repository root dynamically through symlinks and from any working directory.
 - Sets `XDG_CONFIG_HOME` to this checkout's `config` directory (`config/nvim/init.lua`).
 - Sets separate runtime paths `XDG_DATA_HOME` (`.dev-data/`), `XDG_STATE_HOME` (`.dev-state/`), and `XDG_CACHE_HOME` (`.dev-cache/`) inside the checkout root, keeping runtime state strictly isolated from installed `novim` and standard Neovim configurations.
