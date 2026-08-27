@@ -24,12 +24,15 @@ Last merged pull request: `NONE`
   `docs/` without removing or duplicating the upstream public documentation.
 - `TASK-001` is the only actionable task. It plans the isolated `novim-dev`
   launcher; no implementation has been accepted yet.
+- Product direction is now accepted for planning: a VS Code-like, two-pane,
+  mouse-resizable, read-only Git diff workbench with a settings surface for
+  dot-folder visibility and no plugin dependency.
 
 ## Active blockers
 
 - None for `TASK-001`.
-- Before feature tasks are issued, the first workflow, Git authority boundary,
-  and plugin/configuration policy must be answered in the product grill.
+- Before `TASK-002` is issued, the diff baseline and settings persistence model
+  must be fixed. Dot-folder default/allowlist semantics also need confirmation.
 
 ## Next orchestration action
 

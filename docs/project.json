@@ -41,8 +41,16 @@
     "taskSchema": "docs/tasks/task.schema.json"
   },
   "openDecisions": [
-    "first high-value workflow",
-    "Git mutation authority boundary",
-    "plugin-backed versus self-contained configuration policy"
-  ]
+    "diff comparison baseline and first-slice targets",
+    "settings persistence model",
+    "dot-folder default and always-visible allowlist semantics"
+  ],
+  "acceptedProductDirection": {
+    "primaryWorkflow": "read-only local Git diff review",
+    "layout": "left file or changed-file pane plus right source or diff pane",
+    "paneResize": "mouse-draggable divider",
+    "gitMutation": false,
+    "pluginDependency": false,
+    "settings": ["dot-folder visibility"]
+  }
 }

@@ -45,6 +45,22 @@ The repository is a direct clone of upstream novim at tag `v0.1.7`.
 keeping writable data/state separate from upstream `novim`. It will not change
 the upstream command or add product features yet.
 
+## Accepted target direction
+
+After bootstrap, the target product direction is a read-only diff workbench:
+
+- left pane: project tree or changed-file list;
+- right pane: source preview or a readable Git diff;
+- divider: mouse-draggable and width-constrained;
+- settings: an in-app menu/panel, beginning with dot-folder visibility;
+- Git: local status/history/diff inspection only, with no stage, commit, push,
+  discard, or other repository mutation;
+- extensions: no plugin manager or third-party plugin dependency for the first
+  workbench slices.
+
+The exact diff baseline and settings persistence model remain open and must be
+resolved before the corresponding implementation task is issued.
+
 ## Preserved contracts
 
 - Public/user command: installed `novim` remains unchanged.
