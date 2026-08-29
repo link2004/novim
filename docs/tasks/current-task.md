@@ -2,7 +2,7 @@
 
 Updated: 2026-08-27
 Task ID: `TASK-002`
-Status: `PLANNED`
+Status: `READY_FOR_REVIEW`
 Delivery policy: `LIGHTWEIGHT`
 Base branch: `main`
 Task branch: `task/TASK-002-diff-workbench`
@@ -57,23 +57,23 @@ review slice before persistent settings and broader file navigation.
 
 ## Acceptance criteria
 
-- [ ] Launching `novim-dev` in a fixture Git repository opens the workbench
+- [x] Launching `novim-dev` in a fixture Git repository opens the workbench
       without requiring a network connection or a plugin installation.
-- [ ] The left pane identifies changed tracked files relative to `HEAD` and
+- [x] The left pane identifies changed tracked files relative to `HEAD` and
       includes at least modified and untracked fixture files.
-- [ ] Selecting a tracked file shows its working-tree diff against `HEAD` in
+- [x] Selecting a tracked file shows its working-tree diff against `HEAD` in
       the right pane, with enough context to identify additions and deletions.
-- [ ] Selecting an untracked file shows its complete readable new-file view or
+- [x] Selecting an untracked file shows its complete readable new-file view or
       an equivalent all-additions diff without staging the file.
-- [ ] Dragging the divider with the mouse changes the left/right pane widths in
+- [x] Dragging the divider with the mouse changes the left/right pane widths in
       both directions and respects minimum usable widths.
-- [ ] The workbench exposes no action that stages, commits, pushes, discards,
+- [x] The workbench exposes no action that stages, commits, pushes, discards,
       or otherwise mutates Git state; opening and quitting it leaves the fixture
       repository status unchanged.
-- [ ] Existing launcher isolation remains intact: `novim-dev` still uses this
+- [x] Existing launcher isolation remains intact: `novim-dev` still uses this
       checkout's configuration/runtime paths and installed `novim` remains
       unchanged.
-- [ ] The implementation introduces no plugin-manager or new third-party
+- [x] The implementation introduces no plugin-manager or new third-party
       runtime dependency and does not modify unrelated upstream site files.
 
 ## Decision guardrails
@@ -123,8 +123,73 @@ review slice before persistent settings and broader file navigation.
 
 ## Implementer handoff
 
-- Use `$stateless-implementer` on `task/TASK-002-diff-workbench`.
-- Start from `main` at `12327b78049e1348df858b589baf669ba451c090`.
-- Implement only the observable read-only diff workbench described above.
-- Stop at a local `READY_FOR_REVIEW` handoff with commands, fixture details,
-  and evidence recorded for each acceptance criterion.
+Status: `READY_FOR_REVIEW`
+Candidate commit: `HEAD (handoff commit)`
+
+### Summary of changes
+
+1. **Pure read-only Git interface (`config/nvim/lua/novim/git.lua`)**:
+   - Robust discovery of repository root, `HEAD` presence, changed files (modified, untracked, deleted, added, renamed) using `git status --porcelain=v1 -uall`.
+   - Generates read-only diffs against `HEAD` for tracked files and readable all-additions diffs against `/dev/null` for untracked files without staging.
+   - Safe argument array execution via `vim.fn.systemlist` avoiding shell injection.
+   - Explicit handling for binary files, empty files, deleted files, and non-Git directories.
+
+2. **Two-pane Diff Workbench (`config/nvim/lua/novim/workbench.lua`)**:
+   - Vertical split with left changed-file list (~32% default width) and right diff/preview pane.
+   - Unmodifiable, read-only `buftype=nofile` buffers preventing accidental edits.
+   - Mouse and keyboard navigation (`j`/`k`, arrows, `<CR>`, mouse click) with instant diff preview on selection.
+   - Tab/Shift-Tab pane switching, `r` refresh, `?` help dialog, `q` / `Esc Esc` quit.
+   - Draggable vertical separator with `winminwidth = 15` enforcing minimum usable pane widths.
+   - Tokyo Night syntax highlighting for diffs and status indicators.
+
+3. **Startup and Command Integration (`config/nvim/init.lua`)**:
+   - `VimEnter` launches Diff Workbench when no file arguments are given (`argc == 0`).
+   - User commands `:Workbench` and `:DiffWorkbench` and shortcuts `<C-d>` / `<D-d>` wired to workbench.
+   - Added Tokyo Night diff syntax highlights (`diffAdded`, `diffRemoved`, `diffChanged`, `diffFile`, etc.).
+
+4. **Automated Test Suite (`tests/test_workbench.lua`, `tests/run_tests.sh`)**:
+   - Full fixture-based unit and integration test suite verifying Git status discovery, diff generation, untracked/deleted/binary handling, UI layout, pane resizing, help dialog, non-Git and clean repo edge cases, and Git status invariance.
+
+### Files changed
+
+- `config/nvim/lua/novim/git.lua` (new): Git discovery and diff extraction module.
+- `config/nvim/lua/novim/workbench.lua` (new): Diff Workbench two-pane UI and interaction handler.
+- `config/nvim/init.lua`: Startup integration, workbench commands/keymaps, and diff highlight groups.
+- `tests/test_workbench.lua` (new): Automated unit and integration test suite.
+- `tests/run_tests.sh` (new): Test suite runner script.
+- `docs/tasks/current-task.md`: Task status and acceptance evidence.
+
+### Validation commands and results
+
+1. `./tests/run_tests.sh`
+   - Output: `4 total, 4 passed, 0 failed` across `test_git_module`, `test_workbench_ui_integration`, `test_non_git_directory`, and `test_clean_repository`.
+2. `./bin/novim-dev --version`
+   - Output: `novim-dev 0.1.7-dev (custom checkout)` powered by `NVIM v0.12.5`.
+3. `/Users/mert/.local/bin/novim --version`
+   - Output: `novim 0.1.7` (installed version unchanged).
+4. Runtime isolation check (`./bin/novim-dev --headless` querying stdpath):
+   - Config: `/Users/mert/novim-custom/config/nvim`
+   - Data: `/Users/mert/novim-custom/.dev-data/nvim`
+   - State: `/Users/mert/novim-custom/.dev-state/nvim`
+   - Cache: `/Users/mert/novim-custom/.dev-cache/nvim`
+5. Headless workbench initialization check:
+   - Output: `IS_OPEN: true`, window split created, left and right buffers initialized.
+
+### Acceptance criteria evidence
+
+| Criterion | Result | Evidence |
+|---|---|---|
+| Launching `novim-dev` opens workbench without network/plugin | PASS | `./bin/novim-dev --headless` loads `novim.workbench` with 0 external plugins and 0 network requests |
+| Left pane lists changed files relative to `HEAD` (modified, untracked, deleted) | PASS | Verified in `test_git_module` and `test_workbench_ui_integration`; captures all status types |
+| Selecting tracked file shows working-tree diff against `HEAD` with additions/deletions | PASS | Verified in `test_git_module`; diff contains `+MODIFIED` and `-deleted` context |
+| Selecting untracked file shows readable all-additions diff without staging | PASS | Verified in `test_git_module`; diff against `/dev/null` contains all added lines without staging |
+| Dragging divider changes pane widths in both directions with min width | PASS | Verified in `test_workbench_ui_integration`; `winminwidth >= 15` and width changes +10 / -5 |
+| Workbench exposes no mutation action; status remains unchanged | PASS | Verified in `test_workbench_ui_integration`; `git status --short` identical before and after |
+| Launcher isolation intact; installed `novim` unchanged | PASS | `novim-dev` uses `.dev-*` directories; `/Users/mert/.local/bin/novim` reports `0.1.7` |
+| No plugin manager or third-party dependency; upstream site files untouched | PASS | Zero new dependencies added; no files outside `config/`, `tests/`, `docs/` modified |
+
+### Residual risks or known gaps
+
+- Renamed files with complex directory moves are handled via `orig_path` and diff against `HEAD`.
+- Dot-folder visibility settings and persistent preferences will be implemented in TASK-003.
+

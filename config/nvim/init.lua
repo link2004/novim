@@ -101,6 +101,17 @@ hl("DiffDelete", { fg = colors.red1, bg = "#37222c" })
 hl("DiffText", { bg = "#394b70" })
 hl("FloatBorder", { fg = colors.blue0, bg = colors.bg_float })
 
+-- Diff syntax (Tokyo Night style)
+hl("diffAdded", { fg = colors.green })
+hl("diffRemoved", { fg = colors.red1 })
+hl("diffChanged", { fg = colors.blue })
+hl("diffFile", { fg = colors.blue, bold = true })
+hl("diffNewFile", { fg = colors.green, bold = true })
+hl("diffOldFile", { fg = colors.red, bold = true })
+hl("diffLine", { fg = colors.purple })
+hl("diffIndexLine", { fg = colors.comment })
+hl("diffSubname", { fg = colors.blue5 })
+
 -- Syntax
 hl("Comment", { fg = colors.comment, italic = true })
 hl("Constant", { fg = colors.orange })
@@ -513,14 +524,11 @@ vim.api.nvim_create_autocmd("VimEnter", {
   callback = function()
     if vim.fn.argc() > 0 then return end
 
-    vim.cmd("Vex")
-    vim.cmd("wincmd H")
-
-    -- Set tree width to 1/3 of screen
-    local tree_width = math.floor(vim.o.columns / 3)
-    vim.api.nvim_win_set_width(0, tree_width)
-
-    vim.cmd("wincmd l")
+    -- Open the Read-Only Git Diff Workbench
+    local ok, workbench = pcall(require, "novim.workbench")
+    if ok and workbench then
+      workbench.open()
+    end
   end,
 })
 
@@ -683,46 +691,16 @@ local function show_git_log()
   vim.cmd("startinsert")
 end
 
--- Show git diff in a floating window
-local function show_git_diff()
-  local buf = vim.api.nvim_create_buf(false, true)
-  local width = math.floor(vim.o.columns * 0.9)
-  local height = math.floor(vim.o.lines * 0.8)
-  local row = math.floor((vim.o.lines - height) / 2)
-  local col = math.floor((vim.o.columns - width) / 2)
-
-  local win = vim.api.nvim_open_win(buf, true, {
-    relative = "editor",
-    width = width,
-    height = height,
-    row = row,
-    col = col,
-    style = "minimal",
-    border = "rounded",
-    title = " Git Diff ",
-    title_pos = "center",
-  })
-
-  vim.fn.termopen("git diff --color", {
-    on_exit = function()
-      vim.api.nvim_buf_set_keymap(buf, "n", "q", "", {
-        callback = function()
-          vim.api.nvim_win_close(win, true)
-        end,
-        noremap = true,
-        silent = true,
-      })
-      vim.api.nvim_buf_set_keymap(buf, "n", "<Esc>", "", {
-        callback = function()
-          vim.api.nvim_win_close(win, true)
-        end,
-        noremap = true,
-        silent = true,
-      })
-    end,
-  })
-  vim.cmd("startinsert")
+-- Diff Workbench
+local function open_workbench()
+  local ok, workbench = pcall(require, "novim.workbench")
+  if ok and workbench then
+    workbench.open()
+  end
 end
+
+vim.api.nvim_create_user_command("Workbench", open_workbench, { desc = "Open Git Diff Workbench" })
+vim.api.nvim_create_user_command("DiffWorkbench", open_workbench, { desc = "Open Git Diff Workbench" })
 
 -- Ctrl+G / Cmd+G: Git status
 vim.keymap.set({ "n", "i", "v" }, "<C-g>", show_git_status, { silent = true })
@@ -732,6 +710,6 @@ vim.keymap.set({ "n", "i", "v" }, "<D-g>", show_git_status, { silent = true })
 vim.keymap.set({ "n", "i", "v" }, "<C-l>", show_git_log, { silent = true })
 vim.keymap.set({ "n", "i", "v" }, "<D-l>", show_git_log, { silent = true })
 
--- Ctrl+D / Cmd+D: Git diff
-vim.keymap.set({ "n", "i", "v" }, "<C-d>", show_git_diff, { silent = true })
-vim.keymap.set({ "n", "i", "v" }, "<D-d>", show_git_diff, { silent = true })
+-- Ctrl+D / Cmd+D: Git diff workbench
+vim.keymap.set({ "n", "i", "v" }, "<C-d>", open_workbench, { silent = true, desc = "Open Diff Workbench" })
+vim.keymap.set({ "n", "i", "v" }, "<D-d>", open_workbench, { silent = true, desc = "Open Diff Workbench" })
