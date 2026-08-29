@@ -50,14 +50,13 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/4`
 
 ## Active blockers
 
-- TASK-005 local review is `CHANGES_REQUESTED` at candidate
-  `fc4086be3ca6bad8b75189fdaa00dd02ba09bcf0`. The same isolated branch remains
-  active; no PR has been opened and no delivery claim is made. The smoke
-  runner must exercise the launcher’s normal config/root path and must verify
-  fixture cleanup under the host’s actual temporary-directory root.
+- No active blocker. TASK-005 received local verdict `APPROVED` at candidate
+  `965b25cab4195f8b12fb7880971741c48e708809` on the isolated task branch and
+  is ready for lightweight PR delivery. No hosted, production, recovery, or
+  customer-acceptance claim is made.
 
 ## Next orchestration action
 
-Return TASK-005 to `$stateless-implementer` on
-`task/TASK-005-regression-smoke-tests`; address the latest review findings,
-rerun validation, and stop at `READY_FOR_REVIEW` for another local review.
+Push `task/TASK-005-regression-smoke-tests`, open or reuse its single PR
+targeting `main`, merge it if no explicit required check blocks it, then
+verify `origin/main` before reconciling TASK-005 as accepted.

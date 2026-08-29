@@ -112,7 +112,7 @@ contracts.
 
 ## Implementation handoff
 - Status: `READY_FOR_REVIEW`
-- Candidate commit: `HEAD (handoff commit)`
+- Candidate commit: `965b25cab4195f8b12fb7880971741c48e708809` (handoff commit)
 - Outcome summary: Addressed review findings by running headless smoke tests through the launcher's default startup path without `-u`, asserting exact checkout paths, verifying real headless startup from external cwd and symlinks, using cross-platform run-specific temp roots for fixture residue validation, and isolating settings state to eliminate concurrency races.
 - Files changed:
   - `tests/test_smoke.lua` — updated with exact path assertions for checkout config and runtime paths, cross-platform fixture management using `NOVIM_SMOKE_TEMP_ROOT`, isolated settings state file to prevent concurrency races, and verified `vim.fn.delete` return codes.
