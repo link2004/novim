@@ -14,3 +14,9 @@ the real diff and completed the repository's delivery policy.
   navigation, accepted after local review and GitHub PR #4 merge.
 - `TASK-005-regression-smoke-tests.md` — deterministic local regression smoke
   suite, accepted after local review and GitHub PR #6 merge.
+- `TASK-006-package-upstream-sync.md` — offline derivative packaging and
+  explicit upstream synchronization runbook, accepted after local review and
+  GitHub PR #8 merge.
+- `TASK-007-lazy-project-browser.md` — root-only lazy project browser and
+  session-only folder expansion, accepted after local review and GitHub PR #10
+  merge.

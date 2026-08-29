@@ -7,9 +7,11 @@ Delivery policy: `LIGHTWEIGHT`
 Baseline: `33864f5d411b38c851af0401fdbf9919e1a32dbc` (`origin/main`)
 Candidate: `48931884e679c55c2e5eb536706efc0fcd14d249`
 Task branch: `task/TASK-007-lazy-project-browser`
-Pull request: `NOT_OPEN`
+Pull request: `https://github.com/medonmez/novim-custom/pull/10`
 Remote checks: `OPTIONAL / NOT_RUN`
-Merge status: `NOT_STARTED`
+Merge status: `MERGED`
+Target branch contains change: `YES` (`origin/main`)
+Merge commit: `d8f567a2b1b20d6ab9f9afba7e5ab9d2442ce1c9`
 
 ## Review result
 
@@ -71,12 +73,14 @@ customer-acceptance claim is made.
 
 ## Delivery decision
 
-`APPROVED_FOR_PR`: local review passed. Proceed immediately with the
-LIGHTWEIGHT push, pull request, merge, and post-merge verification flow.
+`ACCEPTED` after lightweight PR #10 merge. The reviewed head is contained in
+`origin/main` at merge commit `d8f567a2b1b20d6ab9f9afba7e5ab9d2442ce1c9`;
+review and validation evidence are local, with remote branch containment
+verified separately. No hosted, production, recovery, or customer-acceptance
+claim is made.
 
 ## Next action
 
-Push the reviewed task branch, open or reuse one PR targeting `main`, verify it
-is mergeable without an explicit failing required check, merge promptly, then
-verify the merged head on `origin/main` before marking TASK-007 accepted and
-reconciling the project records.
+TASK-007 is complete. TASK-008 is the single planned next task on
+`task/TASK-008-settings-and-resizing`; implement it only after reading the
+current task record and keep TASK-009 proposed until TASK-008 is accepted.

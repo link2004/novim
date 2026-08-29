@@ -13,12 +13,12 @@ Statuses: `PROPOSED`, `PLANNED`, `IN_PROGRESS`, `READY_FOR_REVIEW`,
 | 4 | TASK-004 | Open source files and move between file tree, changed files, and diff context | ACCEPTED | TASK-002, TASK-003 (accepted) |
 | 5 | TASK-005 | Add local regression smoke tests for launcher, workbench layout, settings, and diff rendering | ACCEPTED | TASK-002 through TASK-004 (accepted) |
 | 6 | TASK-006 | Package the local derivative and document a safe upstream sync procedure | ACCEPTED | TASK-005 (accepted) |
-| 7 | TASK-007 | Start quickly with a root-only lazy project browser and session-only folder expansion | PLANNED | TASK-006 (accepted) |
-| 8 | TASK-008 | Add six built-in themes, settings key help, immediate settings close, and reliable mouse pane resizing | PROPOSED | TASK-007 (planned) |
+| 7 | TASK-007 | Start quickly with a root-only lazy project browser and session-only folder expansion | ACCEPTED | TASK-006 (accepted) |
+| 8 | TASK-008 | Add six built-in themes, settings key help, immediate settings close, and reliable mouse pane resizing | PLANNED | TASK-007 (accepted) |
 | 9 | TASK-009 | Render a three-area side-by-side read-only Git diff with refresh on entry | PROPOSED | TASK-008 (planned) |
 
-TASK-001 through TASK-006 are accepted. TASK-007 is the only actionable
-current task; later slices remain proposed until TASK-007 is accepted.
+TASK-001 through TASK-007 are accepted. TASK-008 is the only actionable
+current task; TASK-009 remains proposed until TASK-008 is accepted.
 
 ## Task notes
 

@@ -9,7 +9,7 @@
   "repository": {
     "localPath": "/Users/mert/novim-custom",
     "baseBranch": "main",
-    "taskBranch": "task/TASK-007-lazy-project-browser",
+    "taskBranch": "task/TASK-008-settings-and-resizing",
     "upstreamUrl": "https://github.com/link2004/novim.git",
     "currentRemoteName": "origin",
     "originUrl": "https://github.com/medonmez/novim-custom.git",
@@ -26,13 +26,13 @@
     "developmentCommandTask": "TASK-001"
   },
   "workflow": {
-    "currentTask": "TASK-007",
-    "currentTaskStatus": "READY_FOR_REVIEW",
+    "currentTask": "TASK-008",
+    "currentTaskStatus": "PLANNED",
     "pullRequest": null,
     "remoteChecks": "OPTIONAL / NOT_RUN",
-    "lastAcceptedTask": "TASK-006",
-    "lastAcceptedCommit": "86ee75844308afbaf7e055bd86b6e5ca8b38a903",
-    "lastMergedPullRequest": "https://github.com/medonmez/novim-custom/pull/8"
+    "lastAcceptedTask": "TASK-007",
+    "lastAcceptedCommit": "d8f567a2b1b20d6ab9f9afba7e5ab9d2442ce1c9",
+    "lastMergedPullRequest": "https://github.com/medonmez/novim-custom/pull/10"
   },
   "canonicalDocs": {
     "repository": "docs/repository.md",
