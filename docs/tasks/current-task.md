@@ -124,7 +124,7 @@ review slice before persistent settings and broader file navigation.
 ## Implementer handoff
 
 Status: `READY_FOR_REVIEW`
-Candidate commit: `HEAD (handoff commit)`
+Candidate commit: `54ad217047eb07b75b08697129cde3c905418443`
 
 ### Summary of changes
 
@@ -145,8 +145,8 @@ Candidate commit: `HEAD (handoff commit)`
 4. **Automated test suite and invariance validation (`tests/test_workbench.lua`)**:
    - `test_git_module_special_paths`: verifies detection and readable diff previews for literal arrows, quotes, tabs, Unicode, renames, and binary files.
    - `test_workbench_close_editor_state`: verifies closing from an unsaved buffer preserves the buffer and its modified flag without `E37`.
-   - `test_left_pane_mouse_selection_no_e21`: verifies that left-pane cursor movements and clicks update selection and diffs with 0 errors on readonly buffers.
-   - `test_mouse_divider_drag_and_status_invariance`: verifies window width resizing in both directions with `winminwidth >= 15` constraints, without masking fallbacks, and verifies byte-for-byte before/after invariance of `git status --porcelain=v1 -z -uall` and `git diff HEAD`.
+   - `test_left_pane_mouse_selection_no_e21`: verifies left-pane cursor/selection state and diff updates without errors on readonly buffers; an independent PTY review verified the native click path.
+   - `test_mouse_divider_drag_and_status_invariance`: verifies width bounds in both directions with `winminwidth >= 15` and byte-for-byte before/after invariance of `git status --porcelain=v1 -z -uall` and `git diff HEAD`; an independent PTY review verified native drag events.
    - `test_non_git_directory` and `test_clean_repository`: verifies explicit UI empty states.
 
 ### Files changed
@@ -180,7 +180,7 @@ Candidate commit: `HEAD (handoff commit)`
 | Left pane lists changed files relative to `HEAD` (modified, untracked, deleted) | PASS | Verified in `test_git_module_special_paths`; includes literal arrows, quotes, tabs, Unicode, renames |
 | Selecting tracked file shows working-tree diff against `HEAD` with additions/deletions | PASS | Verified in test suite; shows `+MODIFIED`, `-deleted` lines for tracked files |
 | Selecting untracked file shows readable all-additions diff without staging | PASS | Verified in `test_git_module_special_paths`; diff against `/dev/null` for arrows, quotes, tabs, Unicode |
-| Dragging divider changes pane widths in both directions with min width | PASS | Native separator dragging unobstructed (E21 removed); `winminwidth >= 15` and width bounds verified |
+| Dragging divider changes pane widths in both directions with min width | PASS | Independent PTY drag measured `26→41`, `41→24`, and `24→15`; no E21 occurred. The automated test separately verifies width bounds and `winminwidth >= 15`. |
 | Workbench exposes no mutation action; status remains unchanged | PASS | Verified in `test_mouse_divider_drag_and_status_invariance`; `git status -z` and `git diff HEAD` byte-for-byte identical before/after |
 | Launcher isolation intact; installed `novim` unchanged | PASS | `novim-dev` uses `.dev-*` directories; `/Users/mert/.local/bin/novim` reports `0.1.7` |
 | No plugin manager or third-party dependency; upstream site files untouched | PASS | Zero new dependencies added; no files outside `config/`, `tests/`, `docs/` modified |
@@ -188,3 +188,10 @@ Candidate commit: `HEAD (handoff commit)`
 ### Residual risks or known gaps
 
 - Dot-folder visibility settings and persistent preferences will be implemented in TASK-003.
+
+## Local review outcome
+
+- Local verdict: `APPROVED` at candidate `54ad217047eb07b75b08697129cde3c905418443`.
+- Independent PTY evidence verified native divider drag in both directions,
+  minimum width behavior, and left-pane click selection without `E21`.
+- Delivery remains pending: PR not yet opened and candidate not yet merged.

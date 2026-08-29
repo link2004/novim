@@ -30,19 +30,17 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/1`
 - Product direction is now accepted for planning: a VS Code-like, two-pane,
   mouse-resizable, read-only Git diff workbench with a settings surface for
   dot-folder visibility and no plugin dependency.
-- `TASK-002` candidate `3a44c203d55537c6bdbd41c73d99678ab824fd2a`
-  received local verdict `CHANGES_REQUESTED`: real terminal mouse handling
-  still raises `E21` from the readonly left pane, and the automated test can
-  mask an unhandled drag with a direct API width change.
+- `TASK-002` candidate `54ad217047eb07b75b08697129cde3c905418443`
+  received local verdict `APPROVED`: native terminal mouse interaction was
+  verified in an independent PTY, including bidirectional divider drag,
+  minimum width behavior, and left-pane click selection without `E21`.
 
 ## Active blockers
 
-- `TASK-002` requires implementation revisions recorded in
-  `docs/reviews/latest-review.md`. This is not a product-decision blocker.
+- None. Local review passed; lightweight PR delivery is the next action.
 
 ## Next orchestration action
 
-Revise `TASK-002` on `task/TASK-002-diff-workbench` using the
-`$stateless-implementer` workflow. Address every finding in
-`docs/reviews/latest-review.md`, then stop at `READY_FOR_REVIEW` with a new
-candidate commit and complete local validation evidence.
+Push `task/TASK-002-diff-workbench`, open its single PR to `main`, merge it
+promptly if mergeable, verify the merged `origin/main`, and then reconcile the
+TASK-002 records before issuing TASK-003.
