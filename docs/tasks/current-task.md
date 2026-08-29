@@ -1,197 +1,133 @@
 # Current Task
 
 Updated: 2026-08-29
-Task ID: `TASK-002`
-Status: `READY_FOR_REVIEW`
+Task ID: `TASK-003`
+Status: `PLANNED`
 Delivery policy: `LIGHTWEIGHT`
 Base branch: `main`
-Task branch: `task/TASK-002-diff-workbench`
-Expected baseline: `12327b78049e1348df858b589baf669ba451c090` (`origin/main`)
+Task branch: `task/TASK-003-project-browser-settings`
+Expected baseline: `794a7c6fe09abb335fb7c14273614a796b365631` (`origin/main`)
 Pull request: `NOT_OPEN`
 Remote checks: `OPTIONAL / NOT_RUN`
 
 ## Outcome
 
-Create the first usable read-only Git diff workbench inside `novim-dev`: a
-two-pane terminal interface where the left pane lists relevant changed files
-and the right pane shows the selected file's diff or content. The divider must
-be draggable with the mouse so both panes can be widened or narrowed.
+Add the next usable project-browsing slice to `novim-dev`: a visible local
+project file browser whose dot-prefixed files and folders are hidden by
+default, plus an in-app settings surface that reveals or hides them and
+persists that choice locally between launches.
 
-The workbench compares the working tree with `HEAD` and includes untracked
-files. It is an inspection surface only; it must not expose or perform Git
-mutations.
+The browser is a read-only filesystem inspection surface. It must preserve the
+accepted TASK-002 Git diff workbench and the isolated development runtime.
 
 ## Context
 
-The product direction is a VS Code-like terminal workbench for code and local
-Git review. TASK-001 established an isolated `novim-dev` launch path, and is
-accepted on `origin/main`. This task delivers the smallest observable diff
-review slice before persistent settings and broader file navigation.
+TASK-001 established the isolated `novim-dev` command and TASK-002 delivered
+the read-only changed-file/diff workbench. The accepted product direction now
+requires project browsing with a persistent dot-folder visibility setting.
+Source-file opening and navigation between the project browser, changed-file
+list, and diff context remain TASK-004 scope.
 
 ## In scope
 
-- Add a workbench entry point reachable through `novim-dev`.
-- Discover the repository's changed tracked files relative to `HEAD`.
-- Include untracked files in the changed-file view.
-- Provide a left changed-file or compact project-file pane and a right source or
-  diff pane.
-- Show the selected tracked file's working-tree diff against `HEAD`.
-- Show an untracked file as a readable new-file diff/content view without
-  requiring it to be staged.
-- Make the pane divider draggable with the mouse, with sensible minimum widths
-  so either pane remains usable.
-- Preserve the isolated launcher/runtime behavior from TASK-001.
-- Keep Git behavior read-only and local.
+- Add a project-file browser reachable from `novim-dev`.
+- List regular project files and directories from the current project root.
+- Hide dot-prefixed files and directories by default at every tree level.
+- Provide a visible settings menu or panel with a dot-folder visibility toggle.
+- Persist the setting locally between launches under the isolated development
+  runtime/state paths.
+- Refresh the browser after toggling the setting without requiring a plugin,
+  network connection, or Git mutation.
+- Keep TASK-002 changed-file/diff behavior and launcher isolation intact.
 
 ## Out of scope
 
-- Stage, unstage, commit, push, pull, merge, rebase, reset, checkout, discard,
-  or any other Git mutation.
-- Branch or historical-commit comparison; the only baseline is `HEAD`.
-- Persistent settings or the dot-folder visibility toggle; those belong to
-  TASK-003.
-- A plugin manager, new third-party plugin dependency, LSP, debugger, AI, or
-  hosted service.
-- A full file explorer, search system, tabs/workspaces, or release packaging.
-- Changes to the installed `/Users/mert/.local/share/novim` release.
+- Opening source files or editing them from the project browser.
+- Navigation between project files, changed files, and the diff preview; that is
+  TASK-004.
+- Git stage, unstage, commit, push, pull, merge, rebase, reset, checkout,
+  discard, or any other repository mutation.
+- A plugin manager, new third-party dependency, LSP, debugger, AI, or hosted
+  service.
+- Search, tabs/workspaces, file operations, project configuration discovery,
+  or a full VS Code replacement.
+- Changes to installed `/Users/mert/.local/share/novim` or the user's normal
+  Neovim configuration.
 
 ## Acceptance criteria
 
-- [x] Launching `novim-dev` in a fixture Git repository opens the workbench
-      without requiring a network connection or a plugin installation.
-- [x] The left pane identifies changed tracked files relative to `HEAD` and
-      includes at least modified and untracked fixture files.
-- [x] Selecting a tracked file shows its working-tree diff against `HEAD` in
-      the right pane, with enough context to identify additions and deletions.
-- [x] Selecting an untracked file shows its complete readable new-file view or
-      an equivalent all-additions diff without staging the file.
-- [x] Dragging the divider with the mouse changes the left/right pane widths in
-      both directions and respects minimum usable widths.
-- [x] The workbench exposes no action that stages, commits, pushes, discards,
-      or otherwise mutates Git state; opening and quitting it leaves the fixture
-      repository status unchanged.
-- [x] Existing launcher isolation remains intact: `novim-dev` still uses this
-      checkout's configuration/runtime paths and installed `novim` remains
-      unchanged.
-- [x] The implementation introduces no plugin-manager or new third-party
-      runtime dependency and does not modify unrelated upstream site files.
+- [ ] Launching `novim-dev` in a fixture project shows regular files and
+      directories in the project browser without network access or plugin
+      installation.
+- [ ] Dot-prefixed files and directories, including nested dot-folders, are
+      hidden by default while non-dot siblings remain visible.
+- [ ] The settings surface is visibly reachable from the workbench and
+      exposes a dot-folder visibility toggle with an unambiguous state.
+- [ ] Enabling the toggle reveals dot-prefixed files and directories at every
+      relevant tree level; disabling it hides them again without losing normal
+      entries.
+- [ ] The visibility choice persists across a fresh `novim-dev` launch using
+      the checkout's isolated state path.
+- [ ] Missing or malformed local settings fall back safely to hidden-by-default
+      behavior without crashing or writing outside the isolated runtime.
+- [ ] Existing TASK-002 diff inspection, native mouse divider behavior, and
+      read-only Git invariance remain intact.
+- [ ] No Git mutation action, network call, plugin-manager dependency, or
+      installed-release modification is introduced.
 
 ## Decision guardrails
 
-- Prefer Neovim/Lua and existing repository/runtime capabilities; justify any
-  new dependency in the task diff before adding it.
-- Treat subprocess errors, non-Git directories, missing `HEAD`, deleted files,
-  and binary files as explicit UI states rather than silently mutating or
-  dropping repository data.
-- Quote or otherwise safely pass repository paths to local Git commands; do not
-  build shell commands from untrusted path text.
-- Keep the initial interaction model small and deterministic. Do not implement
-  settings persistence or future branch comparisons as incidental additions.
-- Preserve MIT and third-party attribution notices.
+- Keep filesystem and settings operations local and read-only with respect to
+  Git; do not infer project root by changing repository state.
+- Apply the dot-prefix rule consistently to nested files and directories, with
+  no first-slice allowlist.
+- Default to hidden when the settings file is absent, invalid, or unreadable;
+  handle persistence errors as visible non-fatal UI states.
+- Store only the display preference under Neovim's isolated state/runtime path;
+  never write credentials, source content, or private data into project docs.
+- Preserve the TASK-002 workbench commands, native mouse behavior, minimum
+  pane widths, and installed `novim` contract.
+- Prefer existing Neovim/Lua capabilities. Any dependency addition requires an
+  explicit justification and remains out of scope by default.
 
 ## Relevant areas
 
-- `bin/novim-dev` — isolated development entry point.
-- `config/nvim/init.lua` — current configuration and UI integration point.
-- `config/nvim/pack/` — existing bundled runtime; do not add dependencies here
-  for this task without explicit justification.
+- `config/nvim/init.lua` — command and workbench integration.
+- `config/nvim/lua/novim/workbench.lua` — existing two-pane workbench and
+  settings entry point.
+- `config/nvim/lua/novim/` — a focused browser/settings module may be added.
+- `bin/novim-dev` — isolated `XDG_*` runtime paths that persistence must use.
 - `docs/product/product.md`, `docs/architecture.md`, and
-  `docs/adr/ADR-002-read-only-diff-workbench.md` — accepted product and
-  architecture boundaries.
-- `docs/tasks/backlog.md`, `project-state.md`, and this record — workflow state
-  that must remain consistent.
+  `docs/adr/ADR-002-read-only-diff-workbench.md` — accepted boundaries.
+- `docs/tasks/backlog.md`, `project-state.md`, and this record — workflow state.
 
 ## Required validation
 
-- Create a temporary fixture repository with a committed baseline, one modified
-  tracked file, one untracked file, and (if supported) a deleted file.
-- Run the workbench against that fixture and verify the changed-file list and
-  selected-file views against direct read-only `git diff`/`git status` output.
-- Manually smoke-test mouse divider dragging in both directions and verify the
-  minimum-width behavior.
-- Verify before and after that the fixture's `git status --short` is identical
-  and that no stage/commit/discard control is present.
-- Verify `novim-dev --version` and the existing installed `novim --version`.
-- Inspect `git status`, `git diff --check`, and the complete task diff for
-  generated runtime files or unrelated changes.
+- Create a temporary fixture project containing regular files/directories,
+  top-level dot-files, and nested dot-folders with visible siblings.
+- Launch `novim-dev` and inspect the browser's default listing and settings
+  toggle; verify both show and hide states at nested levels.
+- Start a fresh `novim-dev` process using the same isolated runtime and verify
+  the selected setting persists; test absent and malformed settings behavior.
+- Verify fixture Git status and diff bytes are unchanged before and after
+  browser/settings interaction, and that no mutation control exists.
+- Re-run `./tests/run_tests.sh`, `novim-dev --version`, installed
+  `novim --version`, `git diff --check`, and complete diff/scope inspection.
+- Keep local filesystem/UI evidence distinct from hosted, production,
+  recovery, and customer-acceptance evidence.
 
 ## Blockers and dependencies
 
 - No product decision is open for this slice.
-- Dependency accepted: TASK-001 is merged to `origin/main`.
+- Dependency: TASK-002 is accepted on `origin/main` at
+  `794a7c6fe09abb335fb7c14273614a796b365631`.
 - No remote or hosted service is required for implementation.
 
-## Implementer handoff
+## Implementation handoff
 
-Status: `READY_FOR_REVIEW`
-Candidate commit: `54ad217047eb07b75b08697129cde3c905418443`
+Status: `PLANNED`
+Candidate commit: `NOT_STARTED`
 
-### Summary of changes
-
-1. **Preserved native mouse interaction without E21 errors (`config/nvim/lua/novim/workbench.lua`)**:
-   - Removed conflicting `<LeftMouse>` / `<2-LeftMouse>` buffer mappings that executed `normal! <LeftMouse>` and caused `E21: Cannot make changes, 'modifiable' is off` on readonly buffers.
-   - Native mouse clicks in the left pane move cursor naturally and fire the `CursorMoved` autocommand, cleanly updating the active file marker (`▶`) and right-pane diff preview.
-   - Native vertical separator dragging (`WinSeparator`) is completely unobstructed, allowing smooth mouse resizing in both directions.
-
-2. **NUL-delimited Git status parsing (`config/nvim/lua/novim/git.lua`)**:
-   - Uses `git status --porcelain=v1 -z -uall` with NUL (`\0`) chunking via `vim.system`.
-   - Preserves exact path bytes for literal arrows (`arrow -> name.txt`), double quotes (`quote"name.txt`), tabs (`tab\tname.txt`), spaces, and Unicode.
-   - Properly parses two-part rename/copy entries (`path\0orig_path\0`).
-
-3. **Safe workbench lifecycle and editor preservation (`config/nvim/lua/novim/workbench.lua`)**:
-   - Command-opened workbench (from active buffer/session) opens in a dedicated tabpage (`tabnew`). Closing via `q` or `close()` calls `tabclose`, returning user to their exact previous buffer, split layout, and unsaved edits without `E37` errors or unintended `:qa`.
-   - Startup-opened workbench (`argc == 0`) quits safely via `confirm qa` if unsaved buffers exist or `qa` if clean.
-
-4. **Automated test suite and invariance validation (`tests/test_workbench.lua`)**:
-   - `test_git_module_special_paths`: verifies detection and readable diff previews for literal arrows, quotes, tabs, Unicode, renames, and binary files.
-   - `test_workbench_close_editor_state`: verifies closing from an unsaved buffer preserves the buffer and its modified flag without `E37`.
-   - `test_left_pane_mouse_selection_no_e21`: verifies left-pane cursor/selection state and diff updates without errors on readonly buffers; an independent PTY review verified the native click path.
-   - `test_mouse_divider_drag_and_status_invariance`: verifies width bounds in both directions with `winminwidth >= 15` and byte-for-byte before/after invariance of `git status --porcelain=v1 -z -uall` and `git diff HEAD`; an independent PTY review verified native drag events.
-   - `test_non_git_directory` and `test_clean_repository`: verifies explicit UI empty states.
-
-### Files changed
-
-- `config/nvim/lua/novim/git.lua`: NUL-delimited status parsing and safe diff execution.
-- `config/nvim/lua/novim/workbench.lua`: Native mouse interaction without E21, tabpage lifecycle management.
-- `tests/test_workbench.lua`: Full test suite covering paths, editor state, mouse selection, width constraints, and Git invariance.
-- `docs/tasks/current-task.md`: Task status, evidence table, and review resolution records.
-
-### Validation commands and results
-
-1. `./tests/run_tests.sh`
-   - Output: `6 total, 6 passed, 0 failed` (`test_workbench_close_editor_state`, `test_left_pane_mouse_selection_no_e21`, `test_git_module_special_paths`, `test_clean_repository`, `test_non_git_directory`, `test_mouse_divider_drag_and_status_invariance`).
-2. `git diff --check` and `git diff --check origin/main...HEAD`
-   - Output: Clean (0 whitespace errors, 0 trailing blank lines).
-3. `./bin/novim-dev --version`
-   - Output: `novim-dev 0.1.7-dev (custom checkout)` powered by `NVIM v0.12.5`.
-4. `/Users/mert/.local/bin/novim --version`
-   - Output: `novim 0.1.7` (installed version unchanged).
-5. Runtime isolation check (`./bin/novim-dev --headless` querying stdpath):
-   - Config: `/Users/mert/novim-custom/config/nvim`
-   - Data: `/Users/mert/novim-custom/.dev-data/nvim`
-   - State: `/Users/mert/novim-custom/.dev-state/nvim`
-   - Cache: `/Users/mert/novim-custom/.dev-cache/nvim`
-
-### Acceptance criteria evidence
-
-| Criterion | Result | Evidence |
-|---|---|---|
-| Launching `novim-dev` opens workbench without network/plugin | PASS | `./bin/novim-dev --headless` initializes workbench with 0 plugins and 0 network requests |
-| Left pane lists changed files relative to `HEAD` (modified, untracked, deleted) | PASS | Verified in `test_git_module_special_paths`; includes literal arrows, quotes, tabs, Unicode, renames |
-| Selecting tracked file shows working-tree diff against `HEAD` with additions/deletions | PASS | Verified in test suite; shows `+MODIFIED`, `-deleted` lines for tracked files |
-| Selecting untracked file shows readable all-additions diff without staging | PASS | Verified in `test_git_module_special_paths`; diff against `/dev/null` for arrows, quotes, tabs, Unicode |
-| Dragging divider changes pane widths in both directions with min width | PASS | Independent PTY drag measured `26→41`, `41→24`, and `24→15`; no E21 occurred. The automated test separately verifies width bounds and `winminwidth >= 15`. |
-| Workbench exposes no mutation action; status remains unchanged | PASS | Verified in `test_mouse_divider_drag_and_status_invariance`; `git status -z` and `git diff HEAD` byte-for-byte identical before/after |
-| Launcher isolation intact; installed `novim` unchanged | PASS | `novim-dev` uses `.dev-*` directories; `/Users/mert/.local/bin/novim` reports `0.1.7` |
-| No plugin manager or third-party dependency; upstream site files untouched | PASS | Zero new dependencies added; no files outside `config/`, `tests/`, `docs/` modified |
-
-### Residual risks or known gaps
-
-- Dot-folder visibility settings and persistent preferences will be implemented in TASK-003.
-
-## Local review outcome
-
-- Local verdict: `APPROVED` at candidate `54ad217047eb07b75b08697129cde3c905418443`.
-- Independent PTY evidence verified native divider drag in both directions,
-  minimum width behavior, and left-pane click selection without `E21`.
-- Delivery remains pending: PR not yet opened and candidate not yet merged.
+The implementer must work only on `task/TASK-003-project-browser-settings`,
+preserve unrelated changes, and stop at `READY_FOR_REVIEW` with a local
+handoff commit and complete acceptance evidence.
