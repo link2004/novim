@@ -125,6 +125,12 @@ local function create_project_browser_fixture()
   f3:write("local M = {}\nreturn M\n")
   f3:close()
 
+  -- Nested regular folder inside src for lazy expansion tests
+  vim.fn.mkdir(dir .. "/src/nested", "p")
+  local f5 = io.open(dir .. "/src/nested/deep.lua", "w")
+  f5:write("return 'deep'\n")
+  f5:close()
+
   vim.fn.mkdir(dir .. "/docs", "p")
   local f4 = io.open(dir .. "/docs/guide.md", "w")
   f4:write("# User Guide\n")
@@ -421,31 +427,45 @@ function tests.test_project_browser_default_hidden_dotfiles()
   local old_cwd = vim.fn.getcwd()
   vim.cmd("cd " .. vim.fn.fnameescape(fixture))
 
-  -- Test browser module directly
-  local tree, stats = browser.get_tree(fixture, false)
+  -- Test browser module directly: a root scan loads only immediate entries
+  local root_entries = browser.get_immediate_entries(fixture, "", 0, false)
   local paths = {}
-  for _, entry in ipairs(tree) do
+  for _, entry in ipairs(root_entries) do
     paths[entry.path] = entry
   end
 
-  -- Regular top-level and nested files/folders MUST be visible
+  -- Regular top-level entries MUST be visible
   assert_true(paths["main.lua"] ~= nil, "main.lua must be visible")
   assert_true(paths["README.md"] ~= nil, "README.md must be visible")
   assert_true(paths["src"] ~= nil, "src/ must be visible")
-  assert_true(paths["src/utils.lua"] ~= nil, "src/utils.lua must be visible")
   assert_true(paths["docs"] ~= nil, "docs/ must be visible")
-  assert_true(paths["docs/guide.md"] ~= nil, "docs/guide.md must be visible")
 
-  -- Dot-prefixed items at root and nested levels MUST be hidden
+  -- Nested descendants MUST NOT be loaded before an expansion action
+  assert_true(paths["src/utils.lua"] == nil, "src/utils.lua must not load before src expands")
+  assert_true(paths["docs/guide.md"] == nil, "docs/guide.md must not load before docs expands")
+
+  -- Dot-prefixed items at root MUST be hidden by default
   assert_true(paths[".env"] == nil, ".env must be hidden by default")
   assert_true(paths[".gitignore"] == nil, ".gitignore must be hidden by default")
   assert_true(paths[".vscode"] == nil, ".vscode must be hidden by default")
-  assert_true(paths[".vscode/settings.json"] == nil, ".vscode/settings.json must be hidden by default")
   assert_true(paths[".github"] == nil, ".github must be hidden by default")
-  assert_true(paths[".github/workflows"] == nil, ".github/workflows must be hidden by default")
-  assert_true(paths["src/.secret_module"] == nil, "src/.secret_module must be hidden by default")
-  assert_true(paths["src/.secret_module/token.lua"] == nil, "nested dot-folder contents must be hidden")
-  assert_true(paths["docs/.hidden_note"] == nil, "docs/.hidden_note must be hidden by default")
+
+  -- Expanding src must reveal only its immediate visible children
+  local src_children = browser.get_immediate_entries(fixture .. "/src", "src", 1, false)
+  local src_paths = {}
+  for _, entry in ipairs(src_children) do
+    src_paths[entry.path] = entry
+  end
+  assert_true(src_paths["src/utils.lua"] ~= nil, "src/utils.lua must be visible after src expansion")
+  assert_true(src_paths["src/nested"] ~= nil, "src/nested must be visible after src expansion")
+  assert_true(src_paths["src/.secret_module"] == nil, "src/.secret_module must be hidden by default")
+  assert_true(src_paths["src/.secret_module/token.lua"] == nil, "nested dot-folder contents must be hidden")
+  assert_true(src_paths["src/nested/deep.lua"] == nil, "src/nested/deep.lua must not load before nested expands")
+
+  local docs_children = browser.get_immediate_entries(fixture .. "/docs", "docs", 1, false)
+  for _, entry in ipairs(docs_children) do
+    assert_true(entry.path ~= "docs/.hidden_note", "docs/.hidden_note must be hidden by default")
+  end
 
   -- Test Workbench Project Browser integration
   workbench.open({ view = "files" })
@@ -453,11 +473,16 @@ function tests.test_project_browser_default_hidden_dotfiles()
   assert_true(state.is_open, "workbench must be open")
   assert_eq(state.view_mode, "files", "view mode must be files")
 
+  for _, entry in ipairs(state.project_files) do
+    assert_eq(entry.depth, 0, "initial workbench list must contain only root entries: " .. entry.path)
+  end
+
   local left_lines = vim.api.nvim_buf_get_lines(state.buf_left, 0, -1, false)
   local left_text = table.concat(left_lines, "\n")
   assert_true(left_text:find("PROJECT BROWSER") ~= nil, "left header must show PROJECT BROWSER")
   assert_true(left_text:find("main.lua") ~= nil, "main.lua must appear in rendered pane")
   assert_true(left_text:find("src/") ~= nil, "src/ must appear in rendered pane")
+  assert_true(left_text:find("utils%.lua") == nil, "descendants must NOT render before expansion")
   assert_true(left_text:find(".env") == nil, ".env must NOT appear in rendered pane")
   assert_true(left_text:find(".vscode") == nil, ".vscode must NOT appear in rendered pane")
 
@@ -470,7 +495,6 @@ function tests.test_settings_toggle_reveals_and_hides_dotfiles()
   local settings = require("novim.settings")
   local browser = require("novim.browser")
   local workbench = require("novim.workbench")
-  local settings_ui = require("novim.settings_ui")
   workbench.close()
 
   local fixture = create_project_browser_fixture()
@@ -488,25 +512,61 @@ function tests.test_settings_toggle_reveals_and_hides_dotfiles()
   assert_true(settings.get("show_dotfiles") == true, "settings.get must return true")
   workbench.refresh()
   local state_revealed = workbench.get_state()
-  local tree_revealed, _ = browser.get_tree(fixture, true)
-  local paths_revealed = {}
-  for _, entry in ipairs(tree_revealed) do
-    paths_revealed[entry.path] = entry
-  end
 
-  -- Verify all dotfiles and dot-folders are now visible
+  -- Root scan with dotfiles revealed
+  local root_revealed = browser.get_immediate_entries(fixture, "", 0, true)
+  local paths_revealed = {}
+  local revealed_dot_count = 0
+  for _, entry in ipairs(root_revealed) do
+    paths_revealed[entry.path] = entry
+    if entry.is_dot then
+      revealed_dot_count = revealed_dot_count + 1
+    end
+  end
+  assert_true(revealed_dot_count > 0, "revealed dot entries must be visible at root")
+
+  -- Verify root dotfiles and dot-folders are now visible
   assert_true(paths_revealed[".env"] ~= nil, ".env must be revealed")
   assert_true(paths_revealed[".gitignore"] ~= nil, ".gitignore must be revealed")
   assert_true(paths_revealed[".vscode"] ~= nil, ".vscode must be revealed")
-  assert_true(paths_revealed[".vscode/settings.json"] ~= nil, ".vscode/settings.json must be revealed")
   assert_true(paths_revealed[".github"] ~= nil, ".github must be revealed")
-  assert_true(paths_revealed["src/.secret_module"] ~= nil, "src/.secret_module must be revealed")
-  assert_true(paths_revealed["src/.secret_module/token.lua"] ~= nil, "nested dot-folder file must be revealed")
-  assert_true(paths_revealed["docs/.hidden_note"] ~= nil, "docs/.hidden_note must be revealed")
 
-  -- Normal entries remain visible
-  assert_true(paths_revealed["main.lua"] ~= nil, "main.lua must remain visible")
-  assert_true(paths_revealed["src/utils.lua"] ~= nil, "src/utils.lua must remain visible")
+  -- Nested dot entries require scanning their parent directory (lazy boundary)
+  local vscode_children = browser.get_immediate_entries(fixture .. "/.vscode", ".vscode", 1, true)
+  local vscode_paths = {}
+  for _, entry in ipairs(vscode_children) do
+    vscode_paths[entry.path] = entry
+  end
+  assert_true(vscode_paths[".vscode/settings.json"] ~= nil, ".vscode/settings.json must be revealed")
+
+  local src_children = browser.get_immediate_entries(fixture .. "/src", "src", 1, true)
+  local src_paths = {}
+  for _, entry in ipairs(src_children) do
+    src_paths[entry.path] = entry
+  end
+  assert_true(src_paths["src/.secret_module"] ~= nil, "src/.secret_module must be revealed")
+
+  local secret_children = browser.get_immediate_entries(fixture .. "/src/.secret_module", "src/.secret_module", 2, true)
+  local secret_paths = {}
+  for _, entry in ipairs(secret_children) do
+    secret_paths[entry.path] = entry
+  end
+  assert_true(secret_paths["src/.secret_module/token.lua"] ~= nil, "nested dot-folder file must be revealed")
+
+  local docs_children = browser.get_immediate_entries(fixture .. "/docs", "docs", 1, true)
+  local docs_paths = {}
+  for _, entry in ipairs(docs_children) do
+    docs_paths[entry.path] = entry
+  end
+  assert_true(docs_paths["docs/.hidden_note"] ~= nil, "docs/.hidden_note must be revealed")
+
+  -- Normal entries remain visible in the workbench list
+  local seen_normal = {}
+  for _, entry in ipairs(state_revealed.project_files) do
+    seen_normal[entry.path] = true
+  end
+  assert_true(seen_normal["main.lua"], "main.lua must remain visible")
+  assert_true(seen_normal["src"], "src must remain visible")
 
   -- 2. Disable show_dotfiles via toggle
   local ok2, err2, val_hidden = settings.toggle_dotfiles()
@@ -514,16 +574,285 @@ function tests.test_settings_toggle_reveals_and_hides_dotfiles()
   assert_true(val_hidden == false, "toggle must return false")
   assert_true(settings.get("show_dotfiles") == false, "settings.get must return false")
   workbench.refresh()
-  local tree_hidden, _ = browser.get_tree(fixture, false)
+  local root_hidden = browser.get_immediate_entries(fixture, "", 0, false)
   local paths_hidden = {}
-  for _, entry in ipairs(tree_hidden) do
+  for _, entry in ipairs(root_hidden) do
     paths_hidden[entry.path] = entry
   end
 
   assert_true(paths_hidden[".env"] == nil, ".env must be hidden again")
   assert_true(paths_hidden[".vscode"] == nil, ".vscode must be hidden again")
-  assert_true(paths_hidden["src/.secret_module"] == nil, "nested dot-folder must be hidden again")
   assert_true(paths_hidden["main.lua"] ~= nil, "normal files must still be visible")
+
+  local src_hidden = browser.get_immediate_entries(fixture .. "/src", "src", 1, false)
+  local src_hidden_paths = {}
+  for _, entry in ipairs(src_hidden) do
+    src_hidden_paths[entry.path] = entry
+  end
+  assert_true(src_hidden_paths["src/.secret_module"] == nil, "nested dot-folder must be hidden again")
+
+  workbench.close()
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+end
+
+-- =========================================================================
+-- TASK-007 New Feature Tests (Lazy Root-Only Project Browser)
+-- =========================================================================
+
+local function find_project_entry(state, path)
+  for _, entry in ipairs(state.project_files) do
+    if entry.path == path then
+      return entry
+    end
+  end
+  return nil
+end
+
+function tests.test_lazy_root_only_initial_state()
+  local workbench = require("novim.workbench")
+  local settings = require("novim.settings")
+  workbench.close()
+  settings.set("show_dotfiles", false)
+
+  local fixture = create_project_browser_fixture()
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  workbench.open({ view = "files" })
+  local st = workbench.get_state()
+  assert_true(st.is_open, "workbench must be open")
+
+  -- Only immediate root entries are visible: docs, src, main.lua, README.md
+  assert_eq(#st.project_files, 4, "initial list must contain exactly the 4 visible root entries")
+  local expected_order = { "docs", "src", "main.lua", "README.md" }
+  for i, expected_path in ipairs(expected_order) do
+    assert_eq(st.project_files[i].path, expected_path, "entry " .. i .. " must be " .. expected_path)
+    assert_eq(st.project_files[i].depth, 0, "initial entries must sit at depth 0")
+  end
+
+  -- No descendant may be loaded or rendered before an expansion action
+  assert_eq(next(st.expanded_dirs), nil, "a new launch must start with no expanded folders")
+  local left_text = table.concat(vim.api.nvim_buf_get_lines(st.buf_left, 0, -1, false), "\n")
+  assert_true(left_text:find("utils%.lua") == nil, "src/utils.lua must not render before expansion")
+  assert_true(left_text:find("guide%.md") == nil, "docs/guide.md must not render before expansion")
+  assert_true(left_text:find("deep%.lua") == nil, "src/nested/deep.lua must not render before expansion")
+
+  workbench.close()
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+end
+
+function tests.test_folder_double_click_expand_and_collapse()
+  local workbench = require("novim.workbench")
+  local settings = require("novim.settings")
+  workbench.close()
+  settings.set("show_dotfiles", false)
+
+  local fixture = create_project_browser_fixture()
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  workbench.open({ view = "files" })
+  local st = workbench.get_state()
+  local src_entry = find_project_entry(st, "src")
+  assert_true(src_entry ~= nil, "src must be visible at root")
+
+  -- Expand: scan only immediate visible children of src
+  workbench.toggle_dir_expansion(src_entry)
+  st = workbench.get_state()
+  assert_true(st.expanded_dirs["src"] == true, "src must be marked expanded")
+  assert_eq(#st.project_files, 6, "expanding src must reveal exactly its 2 visible children")
+  assert_eq(st.project_files[3].path, "src/nested", "src/nested must render right after src")
+  assert_eq(st.project_files[3].depth, 1, "src/nested must render at depth 1")
+  assert_eq(st.project_files[3].is_dir, true, "src/nested must be a directory entry")
+  assert_eq(st.project_files[4].path, "src/utils.lua", "src/utils.lua must render after src/nested")
+  assert_eq(st.project_files[4].depth, 1, "src/utils.lua must render at depth 1")
+  assert_eq(st.project_files[4].is_dir, false, "src/utils.lua must be a file entry")
+  assert_eq(st.project_files[5].path, "main.lua", "root ordering must be preserved after expansion")
+
+  local left_text = table.concat(vim.api.nvim_buf_get_lines(st.buf_left, 0, -1, false), "\n")
+  assert_true(left_text:find("utils%.lua") ~= nil, "src/utils.lua must render after expansion")
+
+  -- Collapse: remove all descendants without touching disk
+  workbench.toggle_dir_expansion(find_project_entry(st, "src"))
+  st = workbench.get_state()
+  assert_eq(#st.project_files, 4, "collapse must restore the root-only list")
+  assert_eq(next(st.expanded_dirs), nil, "collapse must clear expansion state")
+  for _, entry in ipairs(st.project_files) do
+    assert_eq(entry.depth, 0, "collapsed list must contain only root entries")
+  end
+  assert_true(vim.fn.filereadable(fixture .. "/src/utils.lua") == 1, "collapse must not delete files on disk")
+  assert_true(vim.fn.isdirectory(fixture .. "/src/nested") == 1, "collapse must not delete folders on disk")
+
+  workbench.close()
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+end
+
+function tests.test_nested_folder_expands_independently()
+  local workbench = require("novim.workbench")
+  local settings = require("novim.settings")
+  workbench.close()
+  settings.set("show_dotfiles", false)
+
+  local fixture = create_project_browser_fixture()
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  workbench.open({ view = "files" })
+
+  -- Expand src; its nested folder stays collapsed
+  workbench.toggle_dir_expansion(find_project_entry(workbench.get_state(), "src"))
+  local st = workbench.get_state()
+  assert_true(find_project_entry(st, "src/nested") ~= nil, "src/nested must be visible after src expands")
+  assert_true(find_project_entry(st, "src/nested/deep.lua") == nil, "src/nested/deep.lua must stay hidden while nested is collapsed")
+
+  -- Expand the nested folder independently
+  workbench.toggle_dir_expansion(find_project_entry(st, "src/nested"))
+  st = workbench.get_state()
+  assert_true(st.expanded_dirs["src/nested"] == true, "src/nested must be marked expanded")
+  local deep = find_project_entry(st, "src/nested/deep.lua")
+  assert_true(deep ~= nil, "src/nested/deep.lua must appear after nested expands")
+  assert_eq(deep.depth, 2, "src/nested/deep.lua must render at depth 2")
+  assert_true(st.expanded_dirs["src"] == true, "parent expansion must be preserved")
+
+  -- Collapsing the parent removes all descendants including nested's children
+  workbench.toggle_dir_expansion(find_project_entry(st, "src"))
+  st = workbench.get_state()
+  assert_eq(next(st.expanded_dirs), nil, "collapsing src must clear nested expansion too")
+  assert_true(find_project_entry(st, "src/nested") == nil, "descendants must disappear after parent collapse")
+  assert_true(find_project_entry(st, "src/nested/deep.lua") == nil, "nested grandchildren must disappear after parent collapse")
+  assert_true(vim.fn.filereadable(fixture .. "/src/nested/deep.lua") == 1, "collapse must not delete files on disk")
+
+  workbench.close()
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+end
+
+function tests.test_refresh_preserves_expansion_new_launch_resets()
+  local workbench = require("novim.workbench")
+  local settings = require("novim.settings")
+  workbench.close()
+  settings.set("show_dotfiles", false)
+
+  local fixture = create_project_browser_fixture()
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  workbench.open({ view = "files" })
+  workbench.toggle_dir_expansion(find_project_entry(workbench.get_state(), "docs"))
+
+  -- Refresh within the same session preserves valid expansion state
+  workbench.refresh()
+  local st = workbench.get_state()
+  assert_true(st.expanded_dirs["docs"] == true, "refresh must preserve in-session expansion")
+  assert_true(find_project_entry(st, "docs/guide.md") ~= nil, "docs/guide.md must remain visible after refresh")
+  assert_eq(#st.project_files, 5, "refresh must keep exactly the expanded docs child visible")
+
+  -- New workbench launch starts collapsed at the root
+  workbench.close()
+  workbench.open({ view = "files" })
+  st = workbench.get_state()
+  assert_eq(next(st.expanded_dirs), nil, "a new launch must reset expansion state")
+  assert_eq(#st.project_files, 4, "a new launch must list only root entries")
+  assert_true(find_project_entry(st, "docs/guide.md") == nil, "a new launch must not show expanded descendants")
+
+  workbench.close()
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+end
+
+function tests.test_large_fixture_startup_stays_lazy()
+  local workbench = require("novim.workbench")
+  local settings = require("novim.settings")
+  workbench.close()
+  settings.set("show_dotfiles", false)
+
+  -- Deterministic wide/deep fixture: 12 branches, 8 files each level, 4 nested levels
+  local fixture = vim.fn.tempname() .. "_lazy_large_fixture"
+  vim.fn.mkdir(fixture, "p")
+  for d = 1, 12 do
+    local dir_path = fixture .. "/branch_" .. d
+    vim.fn.mkdir(dir_path, "p")
+    for f = 1, 8 do
+      local fh = io.open(dir_path .. "/leaf_" .. f .. ".txt", "w")
+      fh:write("filler " .. d .. " " .. f .. "\n")
+      fh:close()
+    end
+    local deep_path = dir_path
+    for level = 1, 4 do
+      deep_path = deep_path .. "/deep_" .. level
+      vim.fn.mkdir(deep_path, "p")
+      for f = 1, 8 do
+        local fh = io.open(deep_path .. "/deep_leaf_" .. f .. ".txt", "w")
+        fh:write("deep filler " .. d .. " " .. level .. " " .. f .. "\n")
+        fh:close()
+      end
+    end
+  end
+
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  -- Startup observes the lazy boundary structurally, not via a wall-clock budget
+  workbench.open({ view = "files" })
+  local st = workbench.get_state()
+  assert_eq(#st.project_files, 12, "startup must list only the 12 immediate root directories")
+  for _, entry in ipairs(st.project_files) do
+    assert_eq(entry.depth, 0, "no descendant may load at startup: " .. entry.path)
+    assert_eq(entry.is_dir, true, "root fixture entries must be directories")
+  end
+  assert_eq(next(st.expanded_dirs), nil, "startup must not expand anything")
+
+  -- Expanding one folder scans exactly its immediate children
+  workbench.toggle_dir_expansion(find_project_entry(st, "branch_1"))
+  st = workbench.get_state()
+  assert_eq(#st.project_files, 21, "expanding branch_1 must reveal exactly its 9 immediate children")
+  local expanded_dir_count = 0
+  for _ in pairs(st.expanded_dirs) do
+    expanded_dir_count = expanded_dir_count + 1
+  end
+  assert_eq(expanded_dir_count, 1, "only branch_1 may be expanded")
+  assert_true(find_project_entry(st, "branch_1/deep_1/deep_leaf_1.txt") == nil, "deeper descendants must stay unloaded")
+
+  workbench.close()
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+end
+
+function tests.test_symlink_cycle_expansion_is_refused()
+  local workbench = require("novim.workbench")
+  local settings = require("novim.settings")
+  local uv = vim.uv or vim.loop
+  workbench.close()
+  settings.set("show_dotfiles", false)
+
+  local fixture = create_project_browser_fixture()
+  -- Symlink loop: fixture/loop_link -> fixture
+  assert_true(uv.fs_symlink(fixture, fixture .. "/loop_link"), "fixture must create a root symlink loop")
+
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  workbench.open({ view = "files" })
+  local st = workbench.get_state()
+  local loop_entry = find_project_entry(st, "loop_link")
+  assert_true(loop_entry ~= nil, "loop_link must be visible at root")
+  assert_eq(loop_entry.is_dir, true, "loop_link must resolve as a directory")
+
+  -- Expanding the loop must be refused without hanging or listing descendants
+  workbench.toggle_dir_expansion(loop_entry)
+  st = workbench.get_state()
+  assert_eq(#st.project_files, 5, "refused expansion must not add entries")
+  assert_eq(st.expanded_dirs["loop_link"], nil, "loop_link must not be marked expanded")
+  assert_true(find_project_entry(st, "loop_link/main.lua") == nil, "cycle children must not be listed")
+
+  -- A normal directory still expands after the refused cycle attempt
+  workbench.toggle_dir_expansion(find_project_entry(st, "src"))
+  st = workbench.get_state()
+  assert_true(st.expanded_dirs["src"] == true, "normal expansion must still work after a refused cycle")
+  assert_true(find_project_entry(st, "src/utils.lua") ~= nil, "src/utils.lua must appear after normal expansion")
 
   workbench.close()
   vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))

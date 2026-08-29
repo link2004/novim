@@ -1,193 +1,220 @@
 # Current Task
 
-Task ID: `TASK-006`
-Status: `ACCEPTED`
+Task ID: `TASK-007`
+Status: `READY_FOR_REVIEW`
 Delivery policy: `LIGHTWEIGHT`
 Base branch: `main`
-Task branch: `task/TASK-006-package-upstream-sync`
-Expected baseline: `bcdd81ce9e9d0a3badc21d220f98d31600167059` (`origin/main`)
-Pull request: `https://github.com/medonmez/novim-custom/pull/8` (`MERGED`)
-Merge commit: `86ee75844308afbaf7e055bd86b6e5ca8b38a903` (`origin/main`)
+Task branch: `task/TASK-007-lazy-project-browser`
+Expected baseline: `33864f5d411b38c851af0401fdbf9919e1a32dbc` (`origin/main`)
+Pull request: `NOT_OPEN`
 
 ## Outcome
 
-Make the local `novim-custom` derivative reproducibly packageable for local
-use and document a safe, reviewable upstream synchronization procedure while
-preserving the separate `novim-dev` launcher and the installed `novim`
-release boundary.
+Make `novim-dev` open quickly from large directories by replacing recursive
+startup project scanning with a root-only lazy browser. Show descendants only
+when the user double-clicks a folder, and keep expansion state for the current
+session without persisting it.
 
 ## Context
 
-TASK-001 established the isolated `novim-dev` command; TASK-002 through
-TASK-004 delivered the read-only two-pane workbench, project browser/settings,
-and source navigation; TASK-005 added the deterministic local smoke layer.
-The next slice is operational: make the derivative’s local distribution shape
-explicit and leave a durable runbook for comparing and selectively syncing
-upstream changes.
+The current `workbench.refresh()` calls `browser.get_tree()` synchronously and
+recursively, with a depth limit of 15. Opening from a large directory can
+block the Neovim event loop before the workbench becomes usable. The current
+browser also renders a flattened recursive tree, so it cannot defer work until
+a folder is opened.
 
 ## In scope
 
-- Define and implement the local packaging/install path for this derivative,
-  including the required launcher, configuration, bundled runtime assets, and
-  attribution/license files.
-- Keep the local package or installation target distinct from the installed
-  upstream `novim` command and its data directory.
-- Document version/identity, package contents, local install verification, and
-  rollback or removal boundaries for the derivative.
-- Document a safe upstream sync procedure using the existing `upstream` remote:
-  fetch explicitly, compare against a named baseline, inspect changes on an
-  isolated branch, and merge or select changes only after review.
-- Add deterministic local validation for package contents, install isolation,
-  launcher behavior, and the documented sync workflow’s non-destructive
-  boundaries.
+- Add a browser data path that reads and sorts only the immediate entries of a
+  requested directory.
+- Render only visible root entries at initial workbench open. Apply the
+  existing hidden-dotfile setting at every level.
+- Track expanded directories in workbench memory. On folder double-click,
+  scan and reveal only that folder's immediate children; nested folders remain
+  collapsed until explicitly expanded.
+- On folder double-click again, collapse it and remove all descendants from
+  the visible list.
+- Keep expansion state during a refresh within the same session when the
+  corresponding folders still exist; reset it on a new workbench launch.
+- Preserve single-click selection, right-pane directory/file preview, regular
+  file editing handoff, selection bounds, sorting, symlink-cycle protection,
+  and read-only Git behavior.
+- Add deterministic fixture tests proving that descendants are absent before
+  expansion and appear only after the relevant folder is expanded.
 
 ## Out of scope
 
-- Publishing a hosted release, creating a public package-manager formula, or
-  changing the upstream project.
-- Running an upstream fetch, merge, rebase, cherry-pick, or other history
-  mutation as part of normal `novim-dev` startup or package installation.
-- Overwriting, upgrading, or removing the installed `/Users/mert/.local/bin/novim`
-  or `/Users/mert/.local/share/novim` release without an explicit separate
-  user action.
-- New product features, Git mutation controls, network behavior by default,
-  credentials, private data, or a plugin-manager dependency.
-- Claiming hosted, production, recovery, or customer-acceptance evidence from
-  local packaging checks.
+- Themes, settings key-help content, settings close behavior, and pane-drag
+  implementation; these belong to TASK-008.
+- Three-area side-by-side Git diff rendering and diff-entry refresh; these
+  belong to TASK-009.
+- Git mutation, network access, plugin installation, persistent expansion
+  state, file watching, background polling, and installed `novim` changes.
 
 ## Acceptance criteria
 
-- [x] A documented local packaging/install command produces or installs the
-      derivative from this checkout using a temporary target during tests.
-- [x] The package contains the required `novim-dev` launcher, `config/nvim`
-      tree, bundled runtime assets, version identity, and license/attribution
-      files, with no `.git` metadata, `.dev-*` state, credentials, or private
-      runtime data included.
-- [x] A temporary-target install runs `novim-dev --version` and a headless
-      smoke check successfully without changing the installed `novim` command
-      or the source checkout.
-- [x] The safe upstream sync runbook documents explicit fetch/compare steps,
-      isolated branches, review checkpoints, conflict handling, and a
-      reversible recovery path without implying automatic synchronization.
-- [x] The documented workflow preserves the read-only Git, isolated-runtime,
-      no-default-network, and installed-release boundaries accepted by
-      TASK-001 through TASK-005.
-- [x] Existing `./tests/run_tests.sh`, launcher syntax, version checks, and
-      `git diff --check` remain passing, with package/install checks offline.
+- [x] Initial Files view lists only immediate visible entries of the current
+      root; no descendant file or directory is loaded or rendered before an
+      expansion action.
+- [x] A folder double-click expands it, scans only its immediate children,
+      and renders those children with correct indentation and directory/file
+      ordering.
+- [x] A second double-click collapses that folder and removes all descendants
+      from the visible list without changing files on disk.
+- [x] A nested folder remains collapsed after its parent expands and can be
+      expanded independently by double-click.
+- [x] Dot-prefixed entries remain hidden or visible according to the existing
+      persisted setting at root and nested levels.
+- [x] Refresh preserves valid in-session expansion state, while a new
+      workbench launch starts collapsed at the root.
+- [x] Opening from a large/deep fixture remains responsive because startup
+      performs no recursive browser traversal; the test suite observes the
+      lazy boundary directly rather than relying only on a wall-clock budget.
+- [x] Existing source preview/editing, read-only Git, isolated runtime,
+      installed-release, and no-default-network contracts remain intact.
 
 ## Decision guardrails
 
-- Keep package creation and local install deterministic and offline; upstream
-  network access is only an explicit sync action described in the runbook.
-- Use temporary prefixes and fixtures for validation. Do not write to the
-  user’s actual installed `novim` paths or normal Neovim configuration.
-- Preserve upstream attribution and all applicable MIT/third-party license
-  notices; do not package ignored runtime state or secrets.
-- Keep all implementation on this isolated task branch and stop at a local
-  handoff for orchestrator review. No direct default-branch writes.
-- Treat package artifacts, local install behavior, and sync instructions as
-  local evidence only; do not describe them as a hosted release or production
-  deployment.
+- Keep the implementation self-contained in the bundled Neovim configuration;
+  do not add a plugin manager or third-party dependency.
+- Use explicit relative paths and preserve safe symlink-cycle handling. Do not
+  follow a directory recursively unless its visible parent was expanded.
+- Keep all Git commands read-only and leave the working tree untouched.
+- Preserve the current dotfile setting file and isolated `novim-dev` runtime
+  paths.
+- Do not modify the installed `novim` command, its data directory, or normal
+  Neovim configuration.
+- Make no hosted, production, recovery, or customer-acceptance claim from
+  local fixture evidence.
 
 ## Relevant areas
 
-- `bin/novim-dev` and `bin/novim` — launcher identity and installed-release
-  boundary.
-- `config/nvim/` and `config/nvim/pack/` — runtime configuration and bundled
-  assets that a local package must preserve.
-- `VERSION`, `LICENSE`, and `THIRD_PARTY_LICENSES.md` — version and attribution
-  inputs.
-- `install.sh`, `README.md`, and `docs/architecture.md` — existing upstream
-  installation documentation and local derivative architecture.
-- `docs/repository.md`, `docs/adr/`, and the Git remotes — synchronization
-  contract and upstream boundary.
-- `tests/` — offline package/install and regression validation.
+- `config/nvim/lua/novim/browser.lua` — immediate-directory scan and entry
+  model.
+- `config/nvim/lua/novim/workbench.lua` — visible tree state, render path,
+  refresh behavior, and mouse mappings.
+- `config/nvim/lua/novim/settings.lua` — existing dotfile setting contract.
+- `tests/test_workbench.lua` and `tests/test_smoke.lua` — fixture and runtime
+  regression coverage.
 
 ## Required validation
 
-- Inspect the real package manifest/archive and verify its file list and
-  absence of `.git`, `.dev-*`, secrets, and private runtime artifacts.
-- Install or link into an explicitly temporary prefix, run version/help and a
-  headless smoke check, then verify the original checkout and installed
-  `novim` remain unchanged.
-- Run the documented sync procedure in a non-destructive dry-run or fixture
-  repository where possible; do not fetch or mutate upstream history as an
-  unapproved side effect.
-- Run `./tests/run_tests.sh`, `bash -n` on changed shell scripts, both
-  development and installed version checks, and `git diff --check`.
-- Keep local package/install and repository-branch evidence separate from
-  hosted, production, recovery, and customer-acceptance claims.
+- Add and run unit/integration coverage for root-only initial state,
+  expansion/collapse, nested expansion, dotfile filtering, and refresh state.
+- Run the full local suite with `./tests/run_tests.sh` and the relevant smoke
+  checks from a large/deep temporary fixture.
+- Run Lua/shell syntax checks as applicable, both version checks, and
+  `git diff --check`.
+- Verify the candidate diff contains no installed-release, network, Git
+  mutation, credential, or unrelated feature changes.
 
 ## Blockers and dependencies
 
-- No product decision is open for this bounded operational slice.
-- Dependency: TASK-005 is accepted on `origin/main` at merge commit
-  `cd938e2ce0ef9e792b2979cd325e614a65d42590`.
-- Upstream synchronization is documented but must remain an explicit,
-  user-mediated action; no credentials or external service is required for
-  planning or local package validation.
+- No product decision is open for this slice.
+- Dependency: TASK-006 is accepted on `origin/main` at `33864f5`.
+- Follow-up slices TASK-008 and TASK-009 remain proposed and must not be
+  implemented as part of this task.
 
 ## Implementation handoff
 
-Status: `ACCEPTED`
+Status: `READY_FOR_REVIEW`
 
-Delivery record: reviewed `APPROVED` at candidate
-`08ca56ca7efcecb759412d4b6cafa60f33921d6a`, merged through PR #8 as commit
-`86ee75844308afbaf7e055bd86b6e5ca8b38a903` on `origin/main`. All acceptance
-criteria passed observed local validation; evidence is local only.
+### Change summary
 
-Backlog status: TASK-001 through TASK-006 are all accepted. No next task is
-planned; a fresh user brief is required before planning the next slice.
-Candidate commit: `08ca56ca7efcecb759412d4b6cafa60f33921d6a`
+- `config/nvim/lua/novim/browser.lua`: replaced the recursive `get_tree` walk
+  (depth limit 15) with `get_immediate_entries(dir_path, rel_prefix, depth,
+  show_dotfiles)`, which scans and sorts only the immediate visible entries of
+  one directory (directories before files, case-insensitive). Dotfile
+  filtering applies at every level; link/unknown types still resolve through
+  `fs_stat`.
+- `config/nvim/lua/novim/workbench.lua`: added session-only `expanded_dirs`
+  state, `rebuild_project_view` (rebuilds the visible list from root entries
+  plus expanded folders only), `toggle_dir_expansion` (expand on folder
+  double-click; a second double-click collapses and removes all descendants),
+  and an `is_symlink_cycle` guard that refuses expansion when a directory's
+  real path appears among its own ancestors. `refresh()` and settings changes
+  reuse the rebuild path, so in-session expansion survives refresh; `M.open`
+  resets expansion state so a new launch starts collapsed. Stats now describe
+  the currently visible list (`dot_count` counts visible dot entries). The
+  left-pane `<2-LeftMouse>` mapping toggles folders and opens files as before.
+- Defect fix required by the "new launch starts collapsed" criterion: the
+  workbench previously failed with `E95: Buffer with this name already
+  exists` when reopened within the same Neovim session. `fresh_buffer()` now
+  removes a leftover `[Workbench - Navigation]`/`[Workbench - Preview]`
+  scratch buffer before naming a new one (used by `M.open` and
+  `render_right_pane`).
+- Tests: rewrote `test_project_browser_default_hidden_dotfiles` and
+  `test_settings_toggle_reveals_and_hides_dotfiles` for the lazy model and
+  added five TASK-007 tests covering root-only initial state, expand/collapse
+  with disk invariance, nested independent expansion, refresh preservation
+  plus new-launch reset, the structural large-fixture lazy boundary, and
+  symlink-cycle refusal. The project fixture gained `src/nested/deep.lua`.
+- `tests/test_smoke.lua`: `browser.get_tree` usage replaced with
+  `get_immediate_entries`; `dot_count` assertions follow the new
+  visible-entry semantics.
+- `docs/architecture.md`: the workbench baseline section now describes the
+  lazy root-only scan, session-only expansion, and symlink-loop refusal.
 
-Outcome summary: Added an offline, deterministic allowlist package/archive
-helper and empty-target installer for the separate `novim-dev` derivative;
-documented package/removal boundaries and an explicit, review-gated upstream
-sync procedure; and added offline package/install/fixture validation to the
-existing test runner.
+### Files changed
 
-Files changed:
+- `config/nvim/lua/novim/browser.lua`
+- `config/nvim/lua/novim/workbench.lua`
+- `tests/test_workbench.lua`
+- `tests/test_smoke.lua`
+- `docs/architecture.md`
+- `docs/tasks/current-task.md`
+- `docs/project.json`
 
-- `bin/novim-dev-package` — deterministic `package` and safe `install`
-  commands with manifest, path, type, and private/runtime-entry validation.
-- `tests/run_package_tests.sh` — archive determinism/manifest checks,
-  temporary install and headless launcher smoke, non-overwrite checks, local
-  fixture fetch/compare, and source/installed-release invariance checks.
-- `tests/run_tests.sh` and `tests/run_smoke_tests.sh` — package suite entry
-  point and tracked-product regression check compatible with new task files.
-- `docs/LOCAL_DISTRIBUTION.md` — identity, contents, local install,
-  verification, removal, and isolation guide.
-- `docs/UPSTREAM_SYNC.md` — explicit fetch/compare, isolated-branch review,
-  conflict handling, and recovery runbook.
-- `README.md`, `docs/architecture.md`, and `docs/repository.md` — local
-  distribution and synchronization documentation routes.
-- `docs/tasks/current-task.md`, `docs/tasks/backlog.md`, `project-state.md`,
-  and `docs/project.json` — TASK-006 state, actual `origin/main` baseline,
-  and handoff records.
+### Validation
 
-Validation performed:
+- `bin/novim-dev --headless -c "luafile tests/test_workbench.lua"`: 27/27 PASS
+  (22 existing tests updated where they scanned recursively, 5 added).
+- `./tests/run_tests.sh`: 27/27 integration tests, full offline package
+  suite, and 6/6 smoke tests PASS. The smoke runner's product-source
+  invariance check compares tracked `bin/` and `config/` content against
+  `HEAD`, so the full suite is re-run at the handoff commit for the final
+  green run.
+- `bash -n` on `bin/novim-dev`, `bin/novim-dev-package`,
+  `tests/run_tests.sh`, `tests/run_smoke_tests.sh`, and
+  `tests/run_package_tests.sh`: PASS.
+- `./bin/novim-dev --version` reports `0.1.7-dev` on Neovim `v0.12.5`; the
+  installed `novim --version` reports `0.1.7` unchanged: PASS.
+- `python3 -m json.tool docs/project.json`: PASS. `git diff --check`: PASS.
 
-- `./tests/run_tests.sh`: PASS (21/21 workbench tests, offline package tests,
-  and 6/6 regression smoke tests).
-- `./tests/run_package_tests.sh`: PASS (byte-identical repeated archives,
-  required manifest and exclusions, temporary install/version/help/headless
-  smoke, nonempty-target/overwrite denials, local-only sync fixture, source
-  and installed-release invariance).
-- `./tests/run_tests.sh --smoke`: PASS (6/6 regression smoke tests).
-- Concurrent `./tests/run_smoke_tests.sh` and `./tests/run_tests.sh`: PASS
-  (both processes exit 0; package and isolated-runtime checks remain clean).
-- `bash -n bin/novim-dev bin/novim-dev-package tests/run_tests.sh
-  tests/run_smoke_tests.sh tests/run_package_tests.sh`: PASS.
-- `python3 -m json.tool docs/project.json`: PASS.
-- `./bin/novim-dev --version`: PASS (`0.1.7-dev`, Neovim `v0.12.5`).
-- `/Users/mert/.local/bin/novim --version`: PASS (`0.1.7`, unchanged).
-- `git diff --check`: PASS.
+### Acceptance evidence
 
-Acceptance evidence: all six TASK-006 acceptance criteria pass through the
-package manifest/install assertions, local runbooks and fixture workflow,
-existing read-only/runtime/version checks, and offline full test runner.
+- Root-only initial state: `test_lazy_root_only_initial_state` asserts exactly
+  4 visible root entries at depth 0, no expanded folders, and no descendant
+  text rendered. `test_large_fixture_startup_stays_lazy` observes the lazy
+  boundary structurally on a 12-branch/4-level fixture: startup lists 12 root
+  entries, expanding one branch reveals exactly its 9 immediate children, and
+  deeper descendants stay unloaded (no wall-clock budget involved).
+- Expand/collapse: `test_folder_double_click_expand_and_collapse` proves
+  depth-1 children with correct directories-first ordering, collapse
+  restoring the root-only list, and `filereadable`/`isdirectory` disk
+  invariance.
+- Nested independence: `test_nested_folder_expands_independently` proves a
+  nested folder stays collapsed after the parent expands, expands
+  independently to depth 2, and disappears when the parent collapses.
+- Dotfile setting: root- and nested-level filtering is asserted in
+  `test_project_browser_default_hidden_dotfiles`,
+  `test_settings_toggle_reveals_and_hides_dotfiles`, and the smoke suite.
+- Refresh vs new launch: `test_refresh_preserves_expansion_new_launch_resets`.
+- Preserved contracts: byte-for-byte read-only Git invariance, source
+  preview/editing handoff with unsaved-buffer preservation, isolated runtime
+  paths, installed-release independence, and no-default-network checks all
+  pass in the existing suites.
 
-Residual risks / known gaps: local package and fixture evidence only; no
-upstream fetch, hosted release, production deployment, recovery exercise, or
-customer-acceptance claim was made. The optional `novim-dev` convenience link
-remains an explicit user action.
+### Residual risks and known gaps
+
+- `project_stats` now describes the visible list only; recursive totals are
+  intentionally no longer computed at startup.
+- Expanding the same real directory through two different symlink aliases is
+  allowed (aliasing is not a cycle); true loops are refused by the ancestor
+  real-path check.
+- Expansion rebuild rescans expanded folders on each toggle/refresh; cost is
+  bounded by the visible tree, not the whole project.
+
+### Candidate commit
+
+Candidate: HEAD (handoff commit) on `task/TASK-007-lazy-project-browser`.

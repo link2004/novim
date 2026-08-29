@@ -1,44 +1,34 @@
 # Latest Review
 
-Updated: 2026-08-29
-Task ID: `TASK-006`
+Updated: 2026-08-30
+Task ID: `TASK-007`
 Local verdict: `APPROVED`
 Delivery policy: `LIGHTWEIGHT`
-Baseline: `bcdd81ce9e9d0a3badc21d220f98d31600167059` (`origin/main`)
-Candidate: `08ca56ca7efcecb759412d4b6cafa60f33921d6a`
-Task branch: `task/TASK-006-package-upstream-sync`
-Pull request: `https://github.com/medonmez/novim-custom/pull/8`
+Baseline: `33864f5d411b38c851af0401fdbf9919e1a32dbc` (`origin/main`)
+Candidate: `48931884e679c55c2e5eb536706efc0fcd14d249`
+Task branch: `task/TASK-007-lazy-project-browser`
+Pull request: `NOT_OPEN`
 Remote checks: `OPTIONAL / NOT_RUN`
-Merge status: `MERGED`
-Target branch contains change: `YES` (`origin/main`)
-Merge commit: `86ee75844308afbaf7e055bd86b6e5ca8b38a903`
+Merge status: `NOT_STARTED`
 
 ## Review result
 
-The candidate commit was inspected against the verified `origin/main` merge
-baseline `bcdd81c`. The offline packager is an explicit allowlist with
-deterministic archive construction (fixed staging timestamps, `--format=ustar`,
-`gzip -n`) and a temporary-file plus rename write path. Archive validation
-rejects empty archives, path traversal, multiple roots, missing required
-entries, the installed-release launcher, Git/`.dev-*` metadata, credential-like
-names, and links or special files before any extraction. The installer accepts
-only a new or empty, non-symlink root, validates before extracting, and removes
-a root it created if extraction fails. The test runner adds deterministic
-re-pack byte comparison, manifest assertions, temporary install with headless
-smoke and isolated-runtime checks, nonempty-target refusal, a fully local bare
-fixture exercising the documented fetch/compare checkpoints without network or
-history mutation, and before/after invariance of the source checkout and the
-installed `novim` release. The smoke runner's product-source check was narrowed
-to tracked-content comparison, which is correct for task branches that
-legitimately add new launchers under `bin/`; the package runner still compares
-full checkout status before and after its run.
+The candidate was inspected against the verified `origin/main` baseline and
+the full two-commit task diff. The browser now scans only one requested
+directory at a time, and the workbench rebuilds the visible tree from the root
+plus explicitly expanded folders. Expansion is session-only, nested folders
+remain collapsed until selected, collapse removes descendant rows and state,
+and the real-path ancestor check refuses symlink loops. Dotfile filtering,
+sorting, selection bounds, source preview/editing, and read-only Git behavior
+remain intact. The scratch-buffer cleanup is scoped to the workbench's fixed
+buffer names and resolves the required same-session relaunch path.
 
-The two runbooks describe the implemented behavior accurately, keep upstream
-fetch explicit and user-mediated, and make no hosted or production claims.
-Documentation routes were updated without creating a parallel tree.
-
-No correctness, regression, security, privacy, data-integrity,
-public-contract, or scope issue remains for this local review.
+The tests exercise the lazy boundary structurally on both a regular fixture
+and a wide/deep fixture, as well as expansion/collapse, nested expansion,
+dotfile visibility, refresh preservation, new-launch reset, symlink-cycle
+refusal, and existing regression contracts. No correctness, regression,
+security, privacy, data-integrity, public-contract, or scope issue remains for
+this local review.
 
 ## Findings
 
@@ -48,43 +38,45 @@ None.
 
 | Criterion | Result | Evidence |
 |---|---|---|
-| Documented packaging/install command with temporary-target tests | PASS | `docs/LOCAL_DISTRIBUTION.md` documents `package`/`install`; `tests/run_package_tests.sh` exercises both against a run-owned temp root. |
-| Allowlisted contents with no forbidden entries | PASS | Manifest assertions require launcher, `config/nvim/init.lua`, bundled `gitsigns` asset, `VERSION`, `LICENSE`, `THIRD_PARTY_LICENSES.md`; Git/`.dev-*`/credential-like/`bin/novim` entries and link/special types are rejected. |
-| Temporary install runs version and headless smoke without touching installed release or checkout | PASS | Installed `--version`/`--help`, headless config-path and command assertions, isolated `.dev-*` runtime creation, and before/after invariance of checkout HEAD/status and installed `novim` state all pass. |
-| Safe upstream sync runbook with explicit steps and recovery path | PASS | `docs/UPSTREAM_SYNC.md` covers named baseline, explicit fetch, isolated review branch, no-commit cherry-pick/merge checkpoints, abort/revert recovery, and the runbook checkpoints are enforced verbatim by the test fixture. |
-| TASK-001..005 boundaries preserved | PASS | Read-only Git, isolated runtime, no-default-network, and installed-release invariance checks pass in both suites; no network or Git mutation path was added. |
-| Existing validation remains passing, package checks offline | PASS | `./tests/run_tests.sh` (21/21 + package + 6/6 smoke), `bash -n` on all five scripts, both version checks (`novim-dev 0.1.7-dev`, installed `novim 0.1.7`), `python3 -m json.tool docs/project.json`, and `git diff --check` all pass under direct observation. |
+| Root-only initial Files view | PASS | `browser.get_immediate_entries` and `rebuild_project_view` are root/expanded-folder only; `test_lazy_root_only_initial_state` covers four root entries and absent descendants (`tests/test_workbench.lua:612-644`). |
+| Folder double-click expansion and collapse | PASS | `toggle_dir_expansion` scans immediate children, clears descendants on collapse, and the left `<2-LeftMouse>` mapping routes directories to it (`config/nvim/lua/novim/workbench.lua:649-685`, `1116-1132`); fixture verifies ordering and disk invariance (`tests/test_workbench.lua:646-691`). |
+| Independent nested expansion | PASS | Nested folders stay collapsed after parent expansion and expand independently (`tests/test_workbench.lua:693-731`). |
+| Dotfile filtering at root and nested levels | PASS | The immediate-entry API filters each scanned level; workbench and smoke fixtures cover hidden/revealed root, nested folders and nested files (`config/nvim/lua/novim/browser.lua:55-118`; `tests/test_workbench.lua:420-597`; `tests/test_smoke.lua:589-615`). |
+| Refresh preservation and new-launch reset | PASS | Refresh rebuilds from current expansion state while `M.open` resets it for a new launch (`config/nvim/lua/novim/workbench.lua:687-714`, `930-945`, `1231-1235`); fixture covers both paths (`tests/test_workbench.lua:733-764`). |
+| Large/deep startup remains lazy | PASS | Structural 12-branch/4-level fixture observes 12 root rows, exactly one branch's immediate children after expansion, and no deeper rows (`tests/test_workbench.lua:766-822`). |
+| Existing source preview/editing and navigation contracts | PASS | Full integration and smoke suites pass, including source editing, unsaved-buffer preservation, selection, and directory preview. |
+| Read-only Git, isolated runtime, installed release, and no-default-network contracts | PASS | Full package and smoke validation passes; byte-for-byte fixture Git invariance and installed `novim` version/invariance checks remain green. |
 
 ## Validation performed
 
 - Inspected `AGENTS.md`, `docs/repository.md`, `project-state.md`, the current
-  task, backlog, previous review, and the complete candidate diff
-  (`git diff origin/main...HEAD`) including every changed file.
-- Confirmed the checked-out branch is `task/TASK-006-package-upstream-sync`,
-  clean, exactly one commit ahead of `origin/main` at `bcdd81c`.
-- Ran `./tests/run_tests.sh`: 21/21 integration, full offline package suite,
-  and 6/6 smoke tests passed.
+  task, backlog, applicable ADRs/product/architecture records, prior review,
+  and the complete candidate diff (`git diff origin/main...HEAD`).
+- Confirmed the checked-out branch is
+  `task/TASK-007-lazy-project-browser`, clean, and two task commits ahead of
+  `origin/main`, with merge base exactly `33864f5`.
+- Ran `./tests/run_tests.sh`: 27/27 integration tests, offline package suite,
+  and 6/6 regression smoke tests passed.
 - Ran `bash -n` on `bin/novim-dev`, `bin/novim-dev-package`,
   `tests/run_tests.sh`, `tests/run_smoke_tests.sh`, and
   `tests/run_package_tests.sh`: passed.
 - Ran `./bin/novim-dev --version` (`0.1.7-dev`, Neovim `v0.12.5`) and
   `/Users/mert/.local/bin/novim --version` (`0.1.7`, unchanged): passed.
-- Ran `git diff --check`: passed. Ran `python3 -m json.tool docs/project.json`:
-  passed.
+- Ran `python3 -m json.tool docs/project.json`, `git diff --check`, and
+  read-only scope scans: passed; no product-source, installed-release,
+  credential, network, or Git-mutation change was found.
 
 Evidence is local review evidence only; no hosted, production, recovery, or
 customer-acceptance claim is made.
 
 ## Delivery decision
 
-`ACCEPTED` after lightweight PR #8 merge. The reviewed head is contained in
-`origin/main` at merge commit `86ee75844308afbaf7e055bd86b6e5ca8b38a903`;
-review and validation evidence are local, with remote branch containment
-verified separately. No hosted, production, recovery, or customer-acceptance
-claim is made.
+`APPROVED_FOR_PR`: local review passed. Proceed immediately with the
+LIGHTWEIGHT push, pull request, merge, and post-merge verification flow.
 
 ## Next action
 
-TASK-006 is complete and all backlog slices TASK-001 through TASK-006 are
-accepted. No next task is planned; a new user brief is required before
-planning the next slice.
+Push the reviewed task branch, open or reuse one PR targeting `main`, verify it
+is mergeable without an explicit failing required check, merge promptly, then
+verify the merged head on `origin/main` before marking TASK-007 accepted and
+reconciling the project records.

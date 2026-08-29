@@ -43,106 +43,78 @@ local function scan_dir_entries(dir_path)
   return entries
 end
 
---- Recursively scan project files and directories from root
----@param root_dir? string
----@param show_dotfiles? boolean
----@param max_depth? integer
+--- Scan only the immediate visible entries of one directory (lazy model).
+--- Directories are listed before files; both groups sort case-insensitively.
+--- Dotfile filtering applies at every level; callers decide when to scan a
+--- directory, so no traversal happens unless a parent folder was expanded.
+---@param dir_path string absolute directory to scan
+---@param rel_prefix string relative path prefix from project root ("" at root)
+---@param depth integer 0-indexed nesting depth of the returned entries
+---@param show_dotfiles boolean whether dot-prefixed entries are visible
 ---@return ProjectEntry[] entries
----@return { file_count: integer, dir_count: integer, dot_count: integer } stats
-function M.get_tree(root_dir, show_dotfiles, max_depth)
-  root_dir = root_dir or vim.fn.getcwd()
+function M.get_immediate_entries(dir_path, rel_prefix, depth, show_dotfiles)
   show_dotfiles = (show_dotfiles == true)
-  max_depth = max_depth or 15
 
-  local result = {}
-  local stats = { file_count = 0, dir_count = 0, dot_count = 0 }
-  local visited_dirs = {}
+  local raw_entries = scan_dir_entries(dir_path)
 
-  local function walk(current_abs_dir, rel_prefix, depth)
-    if depth > max_depth then return end
+  local dirs = {}
+  local files = {}
 
-    -- Avoid symlink cycles
-    local real_dir = uv.fs_realpath(current_abs_dir) or current_abs_dir
-    if visited_dirs[real_dir] then return end
-    visited_dirs[real_dir] = true
+  for _, item in ipairs(raw_entries) do
+    local name = item.name
+    local is_dot = (name:sub(1, 1) == ".")
 
-    local raw_entries = scan_dir_entries(current_abs_dir)
+    -- If dotfiles are hidden, skip any entry whose name starts with '.'
+    if show_dotfiles or not is_dot then
+      local item_rel_path = (rel_prefix == "") and name or (rel_prefix .. "/" .. name)
+      local item_full_path = dir_path .. "/" .. name
 
-    -- Separate into directories and files, applying dotfile filtering
-    local dirs = {}
-    local files = {}
-
-    for _, item in ipairs(raw_entries) do
-      local name = item.name
-      local is_dot = (name:sub(1, 1) == ".")
-
-      if is_dot then
-        stats.dot_count = stats.dot_count + 1
-      end
-
-      -- If dotfiles are hidden, skip any entry whose name starts with '.'
-      if show_dotfiles or not is_dot then
-        local item_rel_path = (rel_prefix == "") and name or (rel_prefix .. "/" .. name)
-        local item_full_path = current_abs_dir .. "/" .. name
-
-        -- Determine if directory
-        local is_dir = (item.type == "directory")
-        if item.type == "link" or item.type == "unknown" then
-          local st = uv.fs_stat(item_full_path)
-          if st and st.type == "directory" then
-            is_dir = true
-          end
-        end
-
-        local entry = {
-          path = item_rel_path,
-          name = name,
-          is_dir = is_dir,
-          depth = depth,
-          is_dot = is_dot,
-          full_path = item_full_path,
-        }
-
-        if is_dir then
-          table.insert(dirs, entry)
-        else
-          table.insert(files, entry)
+      -- Determine if directory
+      local is_dir = (item.type == "directory")
+      if item.type == "link" or item.type == "unknown" then
+        local st = uv.fs_stat(item_full_path)
+        if st and st.type == "directory" then
+          is_dir = true
         end
       end
-    end
 
-    -- Sort directories alphabetically (case-insensitive)
-    table.sort(dirs, function(a, b)
-      return a.name:lower() < b.name:lower()
-    end)
+      local entry = {
+        path = item_rel_path,
+        name = name,
+        is_dir = is_dir,
+        depth = depth,
+        is_dot = is_dot,
+        full_path = item_full_path,
+      }
 
-    -- Sort files alphabetically (case-insensitive)
-    table.sort(files, function(a, b)
-      return a.name:lower() < b.name:lower()
-    end)
-
-    -- Add directories and recursively traverse them
-    for _, dir_entry in ipairs(dirs) do
-      stats.dir_count = stats.dir_count + 1
-      table.insert(result, dir_entry)
-
-      -- Recursively walk subdirectory
-      walk(dir_entry.full_path, dir_entry.path, depth + 1)
-    end
-
-    -- Add files
-    for _, file_entry in ipairs(files) do
-      stats.file_count = stats.file_count + 1
-      local st = uv.fs_stat(file_entry.full_path)
-      if st then
-        file_entry.size = st.size
+      if is_dir then
+        table.insert(dirs, entry)
+      else
+        local st = uv.fs_stat(item_full_path)
+        if st then
+          entry.size = st.size
+        end
+        table.insert(files, entry)
       end
-      table.insert(result, file_entry)
     end
   end
 
-  walk(root_dir, "", 0)
-  return result, stats
+  -- Sort directories and files alphabetically (case-insensitive)
+  table.sort(dirs, function(a, b)
+    return a.name:lower() < b.name:lower()
+  end)
+  table.sort(files, function(a, b)
+    return a.name:lower() < b.name:lower()
+  end)
+
+  local result = {}
+  for _, dir_entry in ipairs(dirs) do
+    table.insert(result, dir_entry)
+  end
+  for _, file_entry in ipairs(files) do
+    table.insert(result, file_entry)
+  end
+  return result
 end
 
 --- Format file size in human-readable string
