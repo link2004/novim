@@ -1,13 +1,13 @@
 # Project State
 
-Updated: 2026-08-29
+Updated: 2026-08-30
 Repository: `novim-custom`
 Lifecycle: `ACTIVE_DEVELOPMENT`
 Delivery policy: `LIGHTWEIGHT`
-Current task: `TASK-006`
+Current task: `TASK-007`
 Base branch: `main`
-Task branch: `task/TASK-006-package-upstream-sync`
-Pull request: https://github.com/medonmez/novim-custom/pull/8 (`MERGED`)
+Task branch: `task/TASK-007-lazy-project-browser`
+Pull request: `NOT_OPEN`
 Last accepted task: `TASK-006`
 Last accepted commit: `86ee75844308afbaf7e055bd86b6e5ca8b38a903`
 Last merged pull request: `https://github.com/medonmez/novim-custom/pull/8`
@@ -26,9 +26,11 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/8`
   delivered through GitHub PR #1. Merge commit
   `12327b78049e1348df858b589baf669ba451c090` is present on `origin/main`; all
   7 acceptance criteria passed local validation.
-- Product direction is now accepted for planning: a VS Code-like, two-pane,
-  mouse-resizable, read-only Git diff workbench with a settings surface for
-  dot-folder visibility and no plugin dependency.
+- Product direction is accepted for implementation: Files view uses a lazy
+  root-only project tree and source preview; Diff view will use a left
+  changed-file list plus middle old-file and right new-file panes. The six
+  built-in themes, session-only folder expansion, diff-entry refresh, and
+  immediate settings close decisions are recorded in ADR-003.
 - `TASK-003` was locally reviewed `APPROVED`, delivered through GitHub PR #3,
   and verified in merge commit `6a9be23522c43110dd4c4053f67ab22c8586d4b9` on
   `origin/main`. The project browser hides dot-prefixed entries by default,
@@ -60,17 +62,21 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/8`
   `origin/main`. The derivative now has an offline deterministic
   package/install helper, local distribution and upstream sync runbooks, and
   offline package/fixture validation integrated into the test runner.
+- A fresh brief was accepted on 2026-08-30. TASK-007 is planned on
+  `task/TASK-007-lazy-project-browser` to remove recursive startup scanning;
+  TASK-008 and TASK-009 remain proposed follow-up slices for settings/
+  interaction and three-area diff rendering.
 
 ## Active blockers
 
-- No active blocker. TASK-006 is accepted on `origin/main`; the backlog is
-  empty. No hosted, production, recovery, or customer-acceptance claim is
+- No active blocker. TASK-007 is planned from the verified `origin/main`
+  baseline. No hosted, production, recovery, or customer-acceptance claim is
   made.
 
 ## Next orchestration action
 
-Await a fresh user brief for the next slice. TASK-001 through TASK-006 are all
-accepted; do not invent new product scope without user direction. The local
-distribution and upstream sync procedures are documented in
-`docs/LOCAL_DISTRIBUTION.md` and `docs/UPSTREAM_SYNC.md` for future
-maintenance.
+Implement TASK-007 on its isolated task branch, then return a local handoff for
+review. TASK-001 through TASK-006 remain accepted; TASK-008 and TASK-009 must
+wait for their dependencies. The local distribution and upstream sync
+procedures remain documented in `docs/LOCAL_DISTRIBUTION.md` and
+`docs/UPSTREAM_SYNC.md`.

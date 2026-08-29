@@ -1,7 +1,7 @@
 # Architecture
 
-Updated: 2026-08-29
-Status: `OBSERVED_BASELINE`
+Updated: 2026-08-30
+Status: `OBSERVED_BASELINE_WITH_ACCEPTED_EXTENSION`
 
 ## Current system
 
@@ -28,6 +28,22 @@ The repository is a direct clone of upstream novim at tag `v0.1.7`.
   in temporary Neovim floating terminal buffers.
 - `gitsigns.nvim` is bundled under `config/nvim/pack/` for buffer-level Git
   change signs.
+
+### Current derivative workbench baseline
+
+- `novim.workbench` currently opens two windows and calls the synchronous,
+  recursive `browser.get_tree` scan during startup and every refresh. The
+  current default scan can descend up to 15 levels, which makes launching
+  from a large directory slow or appear blocked.
+- The project browser currently renders a flattened recursive tree. Folder
+  rows are selectable, but expansion state is not represented as a lazy tree
+  state.
+- Settings currently persist only dot-folder visibility. The settings modal
+  has direct `Esc` and `q` mappings but no theme controls or embedded key-help
+  section.
+- The current Diff view renders a selected file as unified text in the right
+  preview window. The existing divider is a native split boundary and has no
+  explicit application drag state.
 
 ### External boundaries
 
@@ -91,15 +107,23 @@ Deterministic local validation is provided through standalone scripts without ex
 
 ## Accepted target direction
 
-After bootstrap, the target product direction is a read-only diff workbench:
+The accepted next target is a read-only multi-pane diff workbench:
 
-- left pane: project tree or changed-file list;
-- right pane: source preview or a readable Git diff;
-- divider: mouse-draggable and width-constrained;
-- settings: an in-app menu/panel, beginning with dot-folder visibility;
+- Files view: left lazy project tree and right source preview;
+- Diff view: left changed-file list, middle old-file content, and right
+  new-file content;
+- every visible pane boundary: mouse-draggable and width-constrained;
+- project tree: root-only at launch, with session-only double-click folder
+  expansion and on-demand child scanning;
+- settings: an in-app panel with six built-in themes, dot-folder visibility,
+  and an accurate key-help section;
 - Git: local status/history/diff inspection only, with no stage, commit, push,
   discard, or other repository mutation;
 - initial diff baseline: working tree versus `HEAD`, including untracked files;
+- diff entry: refresh Git status and selected content on entry, while keeping
+  continuous background polling out of scope;
+- text diff presentation: old content on the left and new content on the
+  right, with red removed lines and green added lines;
 - settings: persisted locally between launches;
 - dot-folders: hidden by default and revealed through a settings toggle;
 - extensions: no plugin manager or third-party plugin dependency for the first
@@ -126,5 +150,6 @@ required for the first workbench slice.
 - netrw and floating terminal buffers may not provide the full file/diff
   navigation expected from VS Code.
 - No dedicated repository test suite was observed in the upstream clone.
-- The first feature priority and the Git mutation boundary are still awaiting
-  the product grill.
+- The three-area layout must remain usable at narrow terminal widths; minimum
+  pane widths and behavior when a file is binary or deleted need explicit
+  local tests.

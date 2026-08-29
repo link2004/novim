@@ -9,7 +9,7 @@
   "repository": {
     "localPath": "/Users/mert/novim-custom",
     "baseBranch": "main",
-    "taskBranch": "task/TASK-006-package-upstream-sync",
+    "taskBranch": "task/TASK-007-lazy-project-browser",
     "upstreamUrl": "https://github.com/link2004/novim.git",
     "currentRemoteName": "origin",
     "originUrl": "https://github.com/medonmez/novim-custom.git",
@@ -26,9 +26,9 @@
     "developmentCommandTask": "TASK-001"
   },
   "workflow": {
-    "currentTask": "TASK-006",
-    "currentTaskStatus": "ACCEPTED",
-    "pullRequest": "https://github.com/medonmez/novim-custom/pull/8",
+    "currentTask": "TASK-007",
+    "currentTaskStatus": "PLANNED",
+    "pullRequest": null,
     "remoteChecks": "OPTIONAL / NOT_RUN",
     "lastAcceptedTask": "TASK-006",
     "lastAcceptedCommit": "86ee75844308afbaf7e055bd86b6e5ca8b38a903",
@@ -48,8 +48,8 @@
   "openDecisions": [],
   "acceptedProductDirection": {
     "primaryWorkflow": "read-only local Git diff review",
-    "layout": "left file or changed-file pane plus right source or diff pane",
-    "paneResize": "mouse-draggable divider",
+    "layout": "Files view: left lazy project tree plus right source preview; Diff view: left changed-file list plus middle old-file and right new-file panes",
+    "paneResize": "mouse-draggable, width-constrained boundaries between visible panes",
     "diffBaseline": "working tree versus HEAD, including untracked files",
     "settingsPersistence": "persistent local settings",
     "dotFolders": {
@@ -59,6 +59,21 @@
     },
     "gitMutation": false,
     "pluginDependency": false,
-    "settings": ["dot-folder visibility"]
+    "settings": ["dot-folder visibility", "six built-in themes", "settings key help"],
+    "projectBrowser": {
+      "startup": "immediate visible root entries only",
+      "expansion": "double-click, session-only, on-demand immediate-child scans"
+    },
+    "diffLayout": {
+      "fileList": "left",
+      "oldFile": "middle",
+      "newFile": "right",
+      "refreshOnEntry": true,
+      "unifiedFallback": false
+    },
+    "themes": {
+      "default": "Tokyo Night",
+      "builtIn": ["Tokyo Night", "Nord", "Gruvbox Dark", "Catppuccin Mocha", "One Dark", "Solarized Light"]
+    }
   }
 }

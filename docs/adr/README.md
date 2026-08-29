@@ -7,3 +7,4 @@ record per decision and do not treat an unaccepted proposal as product truth.
 
 - [ADR-001: Isolated local development fork and command](ADR-001-development-fork.md)
 - [ADR-002: Read-only diff workbench direction](ADR-002-read-only-diff-workbench.md)
+- [ADR-003: Lazy project tree and three-area diff layout](ADR-003-lazy-three-area-workbench.md)
