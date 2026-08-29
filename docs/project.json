@@ -27,12 +27,12 @@
   },
   "workflow": {
     "currentTask": "TASK-006",
-    "currentTaskStatus": "READY_FOR_REVIEW",
-    "pullRequest": null,
+    "currentTaskStatus": "ACCEPTED",
+    "pullRequest": "https://github.com/medonmez/novim-custom/pull/8",
     "remoteChecks": "OPTIONAL / NOT_RUN",
-    "lastAcceptedTask": "TASK-005",
-    "lastAcceptedCommit": "cd938e2ce0ef9e792b2979cd325e614a65d42590",
-    "lastMergedPullRequest": "https://github.com/medonmez/novim-custom/pull/7"
+    "lastAcceptedTask": "TASK-006",
+    "lastAcceptedCommit": "86ee75844308afbaf7e055bd86b6e5ca8b38a903",
+    "lastMergedPullRequest": "https://github.com/medonmez/novim-custom/pull/8"
   },
   "canonicalDocs": {
     "repository": "docs/repository.md",

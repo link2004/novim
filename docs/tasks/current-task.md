@@ -1,14 +1,13 @@
 # Current Task
 
-Updated: 2026-08-29
 Task ID: `TASK-006`
-Status: `READY_FOR_REVIEW`
+Status: `ACCEPTED`
 Delivery policy: `LIGHTWEIGHT`
 Base branch: `main`
 Task branch: `task/TASK-006-package-upstream-sync`
 Expected baseline: `bcdd81ce9e9d0a3badc21d220f98d31600167059` (`origin/main`)
-Pull request: `NOT_OPEN`
-Remote checks: `OPTIONAL / NOT_RUN`
+Pull request: `https://github.com/medonmez/novim-custom/pull/8` (`MERGED`)
+Merge commit: `86ee75844308afbaf7e055bd86b6e5ca8b38a903` (`origin/main`)
 
 ## Outcome
 
@@ -130,8 +129,16 @@ upstream changes.
 
 ## Implementation handoff
 
-Status: `READY_FOR_REVIEW`
-Candidate commit: `HEAD (handoff commit)`
+Status: `ACCEPTED`
+
+Delivery record: reviewed `APPROVED` at candidate
+`08ca56ca7efcecb759412d4b6cafa60f33921d6a`, merged through PR #8 as commit
+`86ee75844308afbaf7e055bd86b6e5ca8b38a903` on `origin/main`. All acceptance
+criteria passed observed local validation; evidence is local only.
+
+Backlog status: TASK-001 through TASK-006 are all accepted. No next task is
+planned; a fresh user brief is required before planning the next slice.
+Candidate commit: `08ca56ca7efcecb759412d4b6cafa60f33921d6a`
 
 Outcome summary: Added an offline, deterministic allowlist package/archive
 helper and empty-target installer for the separate `novim-dev` derivative;

@@ -7,10 +7,11 @@ Delivery policy: `LIGHTWEIGHT`
 Baseline: `bcdd81ce9e9d0a3badc21d220f98d31600167059` (`origin/main`)
 Candidate: `08ca56ca7efcecb759412d4b6cafa60f33921d6a`
 Task branch: `task/TASK-006-package-upstream-sync`
-Pull request: opened during lightweight delivery (see project state)
+Pull request: `https://github.com/medonmez/novim-custom/pull/8`
 Remote checks: `OPTIONAL / NOT_RUN`
-Merge status: `PENDING_DELIVERY`
-Target branch contains change: `NO` (delivery in progress)
+Merge status: `MERGED`
+Target branch contains change: `YES` (`origin/main`)
+Merge commit: `86ee75844308afbaf7e055bd86b6e5ca8b38a903`
 
 ## Review result
 
@@ -76,10 +77,14 @@ customer-acceptance claim is made.
 
 ## Delivery decision
 
-`APPROVED_FOR_PR` — proceeding with lightweight PR delivery and prompt merge.
+`ACCEPTED` after lightweight PR #8 merge. The reviewed head is contained in
+`origin/main` at merge commit `86ee75844308afbaf7e055bd86b6e5ca8b38a903`;
+review and validation evidence are local, with remote branch containment
+verified separately. No hosted, production, recovery, or customer-acceptance
+claim is made.
 
 ## Next action
 
-Deliver the reviewed head through a pull request to `origin/main`, merge it,
-verify remote containment, then mark `TASK-006` accepted and reconcile project
-records.
+TASK-006 is complete and all backlog slices TASK-001 through TASK-006 are
+accepted. No next task is planned; a new user brief is required before
+planning the next slice.
