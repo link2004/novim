@@ -2,11 +2,11 @@
 
 Updated: 2026-08-29
 Task ID: `TASK-005`
-Status: `READY_FOR_REVIEW`
+Status: `CHANGES_REQUESTED`
 Delivery policy: `LIGHTWEIGHT`
 Base branch: `main`
 Task branch: `task/TASK-005-regression-smoke-tests`
-Expected baseline: `cdb9140947f0fe4beb9a4748e599e8f769fb6aec` (`origin/main`)
+Expected baseline: `f01b7232f4dd06f5d4ccf4ad2d7fa80c5509d2ab` (`origin/main`)
 Pull request: `NOT_OPEN`
 Remote checks: `OPTIONAL / NOT_RUN`
 
@@ -111,8 +111,8 @@ contracts.
 - No remote or hosted service is required for implementation or validation.
 
 ## Implementation handoff
-- Status: `READY_FOR_REVIEW`
-- Candidate commit: `HEAD (handoff commit)`
+- Status: `CHANGES_REQUESTED`
+- Candidate commit: `fc4086be3ca6bad8b75189fdaa00dd02ba09bcf0` (handoff commit)
 - Outcome summary: Delivered deterministic local regression-smoke layer for `novim-dev` launcher, two-pane workbench, source navigation, settings persistence, and read-only Git diff invariance.
 - Files changed:
   - `tests/test_smoke.lua` — dedicated headless Neovim regression smoke test suite exercising startup paths, two-pane layout, divider constraints, source navigation, unsaved buffer preservation, settings persistence, malformed input recovery, write failures, and exact byte-for-byte Git read-only invariance.
@@ -136,4 +136,17 @@ contracts.
   5. Dotfile filtering, persistent state file roundtrip, malformed JSON recovery, and write-failure resilience verified.
   6. Runner is completely offline and deterministic with guaranteed fixture cleanup and zero repository residue.
   7. Existing `./tests/run_tests.sh`, launcher syntax, version checks, and `git diff --check` all pass.
-- Residual risks / known gaps: None. Local development validation only; no hosted or production claim is made.
+- Residual risks / known gaps: Local review found that the runner bypasses the
+  launcher’s normal config-loading path and that its macOS fixture-residue scan
+  only checks `/tmp`; see `docs/reviews/latest-review.md`. Local development
+  validation only; no hosted or production claim is made.
+
+## Review follow-up
+
+- Local verdict: `CHANGES_REQUESTED` at candidate `fc4086be3ca6bad8b75189fdaa00dd02ba09bcf0`.
+- Required changes: exercise the launcher’s default config/root resolution in
+  the headless smoke path, including external/symlink invocation, and make
+  fixture-residue verification use the actual run-owned temporary root rather
+  than a hard-coded `/tmp` glob.
+- Next action: return this same task branch to `$stateless-implementer`; do not
+  open or merge a PR until a new handoff is ready.

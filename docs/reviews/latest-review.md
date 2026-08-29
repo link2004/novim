@@ -1,73 +1,123 @@
 # Latest Review
 
 Updated: 2026-08-29
-Task ID: `TASK-004`
-Local verdict: `APPROVED`
+Task ID: `TASK-005`
+Local verdict: `CHANGES_REQUESTED`
 Delivery policy: `LIGHTWEIGHT`
-Baseline: `6a9be23522c43110dd4c4053f67ab22c8586d4b9` (`origin/main`)
-Candidate: `2449369d35be78228116b98ef539684f25ae9de2`
-Task branch: `task/TASK-004-source-navigation`
-Pull request: `https://github.com/medonmez/novim-custom/pull/4`
+Baseline: `f01b7232f4dd06f5d4ccf4ad2d7fa80c5509d2ab` (`origin/main`)
+Candidate: `fc4086be3ca6bad8b75189fdaa00dd02ba09bcf0`
+Task branch: `task/TASK-005-regression-smoke-tests`
+Pull request: `NOT_OPEN`
 Remote checks: `OPTIONAL / NOT_RUN`
-Merge status: `MERGED`
-Target branch contains change: `YES` (`origin/main`)
-Merge commit: `cdb9140947f0fe4beb9a4748e599e8f769fb6aec`
+Merge status: `NOT_DELIVERED`
+Target branch contains change: `NO`
 
 ## Review result
 
-The real branch delta was inspected against the recorded TASK-003 merge
-baseline. TASK-004 adds local source-file opening in the existing right pane,
-preserves the read-only directory and Git preview paths, restores the preview
-buffer when returning from an editor buffer, and makes Files/Git Diff
-navigation available from both workbench panes. The change remains within the
-recorded scope and preserves the isolated launcher, dotfile setting, read-only
-Git interface, native divider behavior, and installed-release boundary.
-
-No correctness, regression, security, privacy, data-integrity, public-contract,
-or scope issue remains for this local review.
+The real candidate diff was inspected against the actual `origin/main` merge
+baseline. The additive smoke suite covers the accepted workbench, source
+navigation, settings, and read-only Git behavior, and the required sequential
+local commands pass. The task remains active because the runner does not yet
+prove the launcher boundary and its post-run cleanup check is ineffective on
+this macOS host.
 
 ## Findings
 
-None.
+### High — Headless smoke execution bypasses the launcher’s config-loading path
+
+`tests/run_smoke_tests.sh:109` invokes `novim-dev` with
+`-u "$PROJECT_ROOT/config/nvim/init.lua"`. This explicitly supplies the
+checkout init file, so the smoke suite can pass even if the launcher’s normal
+config selection or checkout-root resolution is wrong. The external-working-
+directory and symlink checks at `tests/run_smoke_tests.sh:73-94` only run
+`--version`; they do not exercise a real Neovim startup from those invocation
+forms. The Lua assertion at `tests/test_smoke.lua:183` is also permissive: any
+path containing the substring `config` satisfies it.
+
+Required change: run the headless suite through the launcher’s normal startup
+path, loading the test after the launcher has initialized its default config;
+do not pass the repository init file as a substitute for launcher coverage.
+Assert the exact checkout config path and exercise the same real headless
+startup from an external cwd and a symlinked launcher (or equivalent
+run-owned invocation that proves the resolved root).
+
+### Medium — Fixture-residue verification scans the wrong temporary root on macOS
+
+`tests/run_smoke_tests.sh:115-123` scans only `/tmp/*_smoke_*`, but this host’s
+`vim.fn.tempname()` returns paths under `/var/folders/.../T/nvim...`. Therefore
+the advertised post-run residue check is a no-op for the fixtures created by
+`tests/test_smoke.lua`, and it cannot detect a leaked fixture on this platform.
+The Lua cleanup calls also ignore the return value of `vim.fn.delete`, so the
+shell check is the only external confirmation for cleanup failures.
+
+Required change: use a run-specific temporary root known to both the shell
+runner and Lua suite (or scan the actual platform temp root with an exact
+run-owned marker), assert cleanup there, and avoid treating a hard-coded
+`/tmp` glob as cross-platform evidence. Preserve nonzero exit behavior when
+cleanup verification fails.
+
+### Medium — Concurrent test processes race on shared development state
+
+Running the candidate’s smoke runner concurrently with the full runner caused
+`tests/test_smoke.lua:575` to fail during the settings persistence roundtrip
+(`expected true, got false`). Both Neovim processes use the shared checkout
+`.dev-state` settings file. The documented commands are sequential, so this is
+not a standalone acceptance failure, but it is a reproducibility risk for
+parallel local or CI invocations and should be addressed if parallel use is
+intended.
 
 ## Acceptance evidence
 
 | Criterion | Result | Evidence |
 |---|---|---|
-| Regular visible files open in the normal editor | PASS | `workbench.lua:472-514` implements `open_file`; `./tests/run_tests.sh` passed `test_open_regular_file_in_editor`, including regular buffer options, right-window focus, left-pane preservation, and editable content. |
-| Directories remain read-only inspection | PASS | `workbench.lua:481-485` rejects directory opening and re-renders the preview; `test_directory_selection_preserves_inspection_no_file_open` passed with `buftype=nofile`, `readonly=true`, and `modifiable=false`. |
-| Files/Git Diff navigation and active tabs | PASS | `set_view`, `toggle_view`, header click handling, pane keymaps, commands, and global shortcuts were inspected; `test_view_switching_and_active_tab_rendering` and existing header-switch tests passed. |
-| Changed-file diff and Files return preserve state | PASS | Diff rendering continues through `git.get_file_diff(file, state.repo_root)`; `test_changed_file_diff_rendering_and_return_to_files` passed with unified `HEAD` diff output and preserved root/setting state. |
-| Dotfile filtering and persistence remain intact | PASS | Existing TASK-003 hidden/revealed, persistence, malformed-settings, and write-failure tests all passed in the 21-test run. |
-| TASK-002 read-only Git, untracked diff, mouse, divider, and minimum widths remain intact | PASS | Existing regression tests for special paths, untracked/changed diffs, mouse selection, divider bounds, and byte-for-byte Git invariance all passed. |
-| No Git mutation, network call, plugin dependency, or installed-release change | PASS | Product diff adds no Git-write or network path and no dependency; changed-file/scope inspection passed, `bin/novim-dev` and installed `novim` version checks passed, and the exact fixture Git status/diff invariance test passed. |
+| Documented local smoke command and nonzero failure path | PARTIAL | `tests/run_smoke_tests.sh` and `tests/run_tests.sh --smoke` exist and sequential failure propagation is wired through `set -e`/Neovim exit status; cleanup failure detection is incomplete on this host. |
+| Checkout config, isolated paths, and installed-release boundary | PARTIAL | Isolated `.dev-*` paths and installed `/Users/mert/.local/bin/novim` version checks pass, but the headless path explicitly supplies the checkout init and does not fully prove launcher config resolution. |
+| Workbench layout, navigation, settings, and unsaved buffers | PASS | Sequential smoke suite passed the six smoke tests, including two panes, source editing handoff, directory preview, settings paths, and buffer preservation. |
+| Git rendering and byte-for-byte invariance | PASS | Sequential smoke suite passed modified, deleted, renamed, untracked, binary, clean, and non-Git fixture checks plus exact before/after status and `git diff HEAD` comparisons. |
+| Dotfile, persistence, malformed-settings, and write-failure contracts | PASS | Sequential smoke and existing integration suites passed these cases. |
+| Offline, deterministic, cleanup, and dependency boundary | PARTIAL | No network or new dependency was introduced and sequential runs pass, but cleanup scanning is not effective under this host temp layout; concurrent state races were also observed. |
+| Existing runner, syntax, versions, and diff check | PASS | `./tests/run_tests.sh`, `./tests/run_tests.sh --smoke`, `bash -n bin/novim-dev tests/run_tests.sh tests/run_smoke_tests.sh`, both version checks, and `git diff --check` passed when run sequentially. |
 
 ## Validation performed
 
-- `./tests/run_tests.sh`: passed, `21 total, 21 passed, 0 failed`.
+- Inspected `AGENTS.md`, `docs/repository.md`, `project-state.md`, the current
+  task, backlog, latest review, architecture/product/ADR records, remotes,
+  branch ancestry, candidate commit, and complete candidate diff.
+- Confirmed the checked-out branch is
+  `task/TASK-005-regression-smoke-tests`, clean before this review, with
+  candidate `fc4086be3ca6bad8b75189fdaa00dd02ba09bcf0` one commit above
+  `origin/main` at `f01b7232f4dd06f5d4ccf4ad2d7fa80c5509d2ab`.
+- `./tests/run_smoke_tests.sh`: passed sequentially twice, 6/6 each time.
+- `./tests/run_tests.sh`: passed sequentially, 21/21 integration tests and 6/6
+  smoke tests.
+- `./tests/run_tests.sh --smoke`: passed, 6/6.
+- `bash -n bin/novim-dev tests/run_tests.sh tests/run_smoke_tests.sh`: passed.
 - `./bin/novim-dev --version`: passed, `0.1.7-dev` / Neovim `v0.12.5`.
-- `/Users/mert/.local/bin/novim --version`: passed, installed `novim 0.1.7`.
-- `bash -n bin/novim-dev tests/run_tests.sh`: passed.
-- `git diff --check 6a9be23522c43110dd4c4053f67ab22c8586d4b9..HEAD`: passed.
-- Direct headless probe from an existing file session opened a source file,
-  added an unsaved in-memory edit, closed the workbench tab, and verified the
-  original tab remained plus the source buffer retained its content and
-  `modified=true` state.
-- Candidate diff, branch ancestry, remotes, and working-tree status were
-  inspected. The task branch is isolated and clean before this review record;
-  no unrelated product or untracked files were present.
+- `/Users/mert/.local/bin/novim --version`: passed, installed `0.1.7`.
+- `git diff --check origin/main...HEAD`: passed.
+- Direct `./bin/novim-dev --headless -c "luafile .../tests/test_smoke.lua"`
+  passed 6/6, demonstrating the normal launcher path separately from the
+  candidate runner; this is not credited as candidate coverage because the
+  runner itself still uses `-u`.
+- `vim.fn.tempname()` resolved under `/var/folders/.../T` on this macOS host,
+  confirming that the runner’s `/tmp` residue glob does not cover its own
+  fixture paths.
+- Concurrent smoke/full-runner execution reproduced the shared `.dev-state`
+  settings race at `tests/test_smoke.lua:575`.
+- Working-tree status remained clean apart from ignored `.dev-state/` runtime
+  artifacts; no PR was opened and no remote delivery was attempted.
 
 Evidence is local review evidence only; no hosted, production, recovery, or
 customer-acceptance claim is made.
 
 ## Delivery decision
 
-`ACCEPTED` after lightweight PR #4 merge. Review and validation evidence is
-local, with remote branch containment verified separately; no hosted,
-production, recovery, or customer-acceptance claim is made.
+`CHANGES_REQUESTED`. Do not open or merge a PR for
+`fc4086be3ca6bad8b75189fdaa00dd02ba09bcf0`. Return the same isolated branch to
+`$stateless-implementer` for the required smoke-runner revisions.
 
 ## Next action
 
-TASK-004 is complete. TASK-005 is now the single actionable planned task on
-`task/TASK-005-regression-smoke-tests` from the verified `origin/main` merge
-commit `cdb9140947f0fe4beb9a4748e599e8f769fb6aec`.
+Run `$stateless-implementer` on
+`task/TASK-005-regression-smoke-tests`; fix the two required findings, rerun
+the full local validation, and stop at `READY_FOR_REVIEW` with a new handoff.

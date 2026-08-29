@@ -50,11 +50,14 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/4`
 
 ## Active blockers
 
-- No active blocker. TASK-005 is planned on the isolated branch
-  `task/TASK-005-regression-smoke-tests` from the verified TASK-004 merge
-  baseline.
+- TASK-005 local review is `CHANGES_REQUESTED` at candidate
+  `fc4086be3ca6bad8b75189fdaa00dd02ba09bcf0`. The same isolated branch remains
+  active; no PR has been opened and no delivery claim is made. The smoke
+  runner must exercise the launcher’s normal config/root path and must verify
+  fixture cleanup under the host’s actual temporary-directory root.
 
 ## Next orchestration action
 
-Implement TASK-005 on `task/TASK-005-regression-smoke-tests`, preserving the
-accepted TASK-002 through TASK-004 read-only and isolated-runtime contracts.
+Return TASK-005 to `$stateless-implementer` on
+`task/TASK-005-regression-smoke-tests`; address the latest review findings,
+rerun validation, and stop at `READY_FOR_REVIEW` for another local review.
