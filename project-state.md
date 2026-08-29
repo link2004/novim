@@ -30,10 +30,10 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/1`
 - Product direction is now accepted for planning: a VS Code-like, two-pane,
   mouse-resizable, read-only Git diff workbench with a settings surface for
   dot-folder visibility and no plugin dependency.
-- `TASK-002` candidate `6d6edd81bed671bce81aeca259214cdcf31f2ac9`
-  received local verdict `CHANGES_REQUESTED`: valid quoted/special Git paths
-  are corrupted, command-opened workbench close behavior breaks editor state,
-  required mouse/status evidence is incomplete, and `git diff --check` fails.
+- `TASK-002` candidate `3a44c203d55537c6bdbd41c73d99678ab824fd2a`
+  received local verdict `CHANGES_REQUESTED`: real terminal mouse handling
+  still raises `E21` from the readonly left pane, and the automated test can
+  mask an unhandled drag with a direct API width change.
 
 ## Active blockers
 

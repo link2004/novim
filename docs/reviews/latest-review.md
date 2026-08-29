@@ -5,7 +5,7 @@ Task ID: `TASK-002`
 Local verdict: `CHANGES_REQUESTED`
 Delivery policy: `LIGHTWEIGHT`
 Baseline: `12327b78049e1348df858b589baf669ba451c090` (`origin/main`)
-Candidate: `6d6edd81bed671bce81aeca259214cdcf31f2ac9`
+Candidate: `3a44c203d55537c6bdbd41c73d99678ab824fd2a`
 Task branch: `task/TASK-002-diff-workbench`
 Pull request: `NOT_OPEN`
 Remote checks: `OPTIONAL / NOT_RUN`
@@ -14,99 +14,63 @@ Target branch contains change: `NO`
 
 ## Findings
 
-### HIGH — Valid Git paths are corrupted before preview
+### HIGH — Real mouse interaction is still broken and the regression test masks it
 
-`config/nvim/lua/novim/git.lua:74-126` parses line-oriented porcelain output by
-stripping surrounding quotes and splitting every path containing ` -> `. That
-does not decode Git's quoted path format and mistakes a literal ` -> ` inside a
-filename for rename syntax.
+`config/nvim/lua/novim/workbench.lua:663-665` maps `<LeftMouse>` in the
+readonly left-pane buffer and runs `normal! <LeftMouse>`. In an independent
+interactive PTY fixture, a mouse press at the divider produced
+`E21: Cannot make changes, 'modifiable' is off`; the divider did not resize.
+The same mapping also prevents ordinary left-pane mouse selection from being a
+clean interaction.
 
-An independent temporary fixture with three valid untracked paths reproduced
-the failure:
+`tests/test_workbench.lua:243-266` sends mouse input, but when the event does
+not change the width it calls `nvim_win_set_width` directly. An independent
+headless mouse-only probe measured `before=26 after=26`, so the suite's 5/5
+result does not prove that a real drag was handled.
 
-- `arrow -> name.txt` became `name.txt"`;
-- a filename containing `"` became `quote\\"name.txt`;
-- a filename containing a tab became the literal text `tab\\tname.txt`.
-
-All three previews returned `error: Could not access ...`. The workbench
-therefore neither identifies nor renders all valid changed paths safely. Use a
-NUL-delimited porcelain format and preserve path bytes exactly, including the
-two-path rename record. Add regression coverage for literal arrows, quotes,
-tabs, spaces, non-ASCII names, and renames before marking this resolved.
-
-### HIGH — Closing a command-opened workbench breaks editor state
-
-`config/nvim/lua/novim/workbench.lua:434-451` treats two workbench windows as a
-reason to execute `:qall`, while `config/nvim/lua/novim/workbench.lua:471-488`
-first replaces the active layout with those workbench buffers. When opened from
-an edited buffer through `:Workbench` or Ctrl/Cmd+D, `q` exits the whole editor
-if possible instead of returning to the prior buffer layout.
-
-With an unsaved buffer, the independent diagnostic observed `E37: No write
-since last change`; `state.is_open` had already changed to `false` while both
-workbench windows remained open. Preserve and restore the prior layout for a
-command-opened workbench, or otherwise provide a safe close path that uses the
-existing unsaved-change confirmation contract and never leaves internal state
-inconsistent. Add a regression test for saved and unsaved editor buffers.
-
-### MEDIUM — Required interaction and invariance evidence is overstated
-
-`tests/test_workbench.lua:202-225` changes pane width directly through the
-Neovim API; it does not exercise an actual mouse-divider drag. The same test
-does not capture a before-status snapshot and therefore cannot support the
-handoff statement that `git status --short` is identical before and after. It
-only checks that two path substrings are still present.
-
-Record a real mouse drag in both directions with minimum-width behavior, and
-compare an exact before/after status snapshot that includes staged, unstaged,
-deleted, renamed, and untracked state. Keep this evidence local; it is not
-hosted or production evidence.
-
-### LOW — Candidate diff fails the required whitespace check
-
-`git diff --check origin/main...HEAD` reports
-`docs/tasks/current-task.md:195: new blank line at EOF.` Remove the extra blank
-line and rerun the check.
+Preserve native divider mouse handling and make left-pane mouse interaction
+work without attempting to modify a readonly buffer. Replace the fallback
+that converts an unhandled event into a pass, and record a real PTY/terminal
+drag in both directions with minimum-width checks. Keep the exact Git-state
+invariance assertions.
 
 ## Acceptance evidence
 
 | Criterion | Result | Evidence |
 |---|---|---|
-| Offline fixture launch | PASS | Independent `./tests/run_tests.sh` run; workbench initialized without plugin installation |
-| Basic modified/untracked listing | PASS WITH GAP | Ordinary fixture paths pass; valid quoted/control-character paths fail as described above |
-| Tracked diff rendering | PASS | Independent suite shows additions/deletions for the ordinary tracked fixture |
-| Untracked file rendering | PASS WITH GAP | Ordinary untracked path passes; adversarial valid paths produce access errors |
-| Mouse divider drag and minimums | NOT VERIFIED | Candidate test calls `nvim_win_set_width`; no actual mouse interaction evidence is recorded |
-| Read-only Git behavior and status invariance | PASS WITH GAP | Product Git calls are read-only by inspection; candidate test does not perform the claimed exact snapshot comparison |
-| Launcher isolation | PASS | Development and installed commands both report `0.1.7`; stdpaths remain under checkout `.dev-*` directories |
-| No new dependency or unrelated site change | PASS | Real task diff adds no dependency and touches no upstream site asset |
+| Offline fixture launch | PASS | `./tests/run_tests.sh` completed under the bundled checkout configuration without a plugin installation or hosted service. |
+| Changed-file list includes tracked and untracked files | PASS | Special-path regression passes; an independent PTY fixture listed modified, deleted, renamed, staged-added, and untracked entries. |
+| Tracked diff against `HEAD` shows additions/deletions | PASS | Independent fixture selected `tracked.txt` and rendered `-base 2`, `+MODIFIED`, and `+added` from `git diff HEAD`. |
+| Untracked file shows readable all-additions view | PASS | Special-path regression rendered arrow, quote, tab, and Unicode filenames and their content without staging. |
+| Mouse divider resizes both directions and respects minimum widths | FAIL | Real PTY mouse input did not resize; the left-pane mapping raised `E21`. The automated test uses a direct-width fallback after failed input. |
+| No Git mutation and exact status/diff invariance | PASS | Suite compares byte-for-byte before/after `git status --porcelain=v1 -z -uall` and `git diff HEAD`; product Git calls are read-only by source inspection. |
+| Launcher isolation and installed `novim` unchanged | PASS | `./bin/novim-dev --version` reports `0.1.7-dev`; installed `/Users/mert/.local/bin/novim --version` reports `0.1.7`; isolated `.dev-*` paths remain in use. |
+| No new dependency or unrelated upstream site change | PASS | Complete diff adds no plugin/dependency and does not modify upstream site assets. |
 
 ## Validation performed
 
-- `./tests/run_tests.sh`: passed, `4 total, 4 passed, 0 failed`.
+- `./tests/run_tests.sh`: passed, `5 total, 5 passed, 0 failed`.
 - `bash -n bin/novim-dev tests/run_tests.sh`: passed.
-- `./bin/novim-dev --version`: passed; reported `0.1.7-dev` and Neovim
-  `0.12.5`.
-- `/Users/mert/.local/bin/novim --version`: passed; reported installed
-  `novim 0.1.7` and Neovim `0.12.5`.
-- Headless stdpath inspection: config, data, state, and cache remained isolated
-  under this checkout.
-- Independent adversarial-path fixture: failed for literal arrow, quote, and
-  tab filenames.
-- Independent unsaved-buffer close diagnostic: failed with `E37` and
-  inconsistent `is_open=false` state.
-- `git diff --check origin/main...HEAD`: failed on the extra EOF blank line.
-- Remote branch inspection: `origin/main` remains at `12327b7`; the remote task
-  branch remains at `73f0f82`; candidate `6d6edd8` is local only.
+- `git diff --check origin/main...HEAD`: passed.
+- `./bin/novim-dev --version`: passed, `0.1.7-dev` / Neovim `0.12.5`.
+- `/Users/mert/.local/bin/novim --version`: passed, installed `novim 0.1.7`.
+- Independent headless mouse-only probe: failed to resize, `before=26 after=26`.
+- Independent interactive PTY mouse probe: left-pane `<LeftMouse>` raised
+  `E21: Cannot make changes, 'modifiable' is off` and did not resize the
+  divider.
+- Independent tracked-diff fixture: rendered expected additions/deletions.
+- Complete candidate diff and repository status inspected; no untracked
+  product files or unrelated source changes found. `.dev-state/` is ignored
+  runtime state.
 
 ## Required changes or blocker
 
-Return the same `TASK-002` branch to `$stateless-implementer` and address all
-four findings. Do not open a PR or merge this candidate. The next handoff must
-include targeted regressions, exact Git-state invariance evidence, a real mouse
-interaction record, and a clean `git diff --check` result.
+Return the same `TASK-002` branch to `$stateless-implementer`. Fix the HIGH
+mouse interaction finding, add non-masking interaction evidence, rerun the
+full local validation, and stop again at `READY_FOR_REVIEW` with a new
+candidate commit. Do not open a PR or merge this candidate.
 
 ## Next action
 
-Run `$stateless-implementer` on `task/TASK-002-diff-workbench` to revise
-`TASK-002`; stop again at `READY_FOR_REVIEW` with a new candidate commit.
+Run `$stateless-implementer` on `task/TASK-002-diff-workbench` to correct the
+mouse handling and return a new local handoff.
