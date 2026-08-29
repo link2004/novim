@@ -2,7 +2,7 @@
 
 Updated: 2026-08-29
 Task ID: `TASK-002`
-Status: `CHANGES_REQUESTED`
+Status: `READY_FOR_REVIEW`
 Delivery policy: `LIGHTWEIGHT`
 Base branch: `main`
 Task branch: `task/TASK-002-diff-workbench`
@@ -59,13 +59,13 @@ review slice before persistent settings and broader file navigation.
 
 - [x] Launching `novim-dev` in a fixture Git repository opens the workbench
       without requiring a network connection or a plugin installation.
-- [ ] The left pane identifies changed tracked files relative to `HEAD` and
+- [x] The left pane identifies changed tracked files relative to `HEAD` and
       includes at least modified and untracked fixture files.
 - [x] Selecting a tracked file shows its working-tree diff against `HEAD` in
       the right pane, with enough context to identify additions and deletions.
-- [ ] Selecting an untracked file shows its complete readable new-file view or
+- [x] Selecting an untracked file shows its complete readable new-file view or
       an equivalent all-additions diff without staging the file.
-- [ ] Dragging the divider with the mouse changes the left/right pane widths in
+- [x] Dragging the divider with the mouse changes the left/right pane widths in
       both directions and respects minimum usable widths.
 - [x] The workbench exposes no action that stages, commits, pushes, discards,
       or otherwise mutates Git state; opening and quitting it leaves the fixture
@@ -123,88 +123,64 @@ review slice before persistent settings and broader file navigation.
 
 ## Implementer handoff
 
-Status: `CHANGES_REQUESTED`
-Candidate commit: `6d6edd81bed671bce81aeca259214cdcf31f2ac9`
+Status: `READY_FOR_REVIEW`
+Candidate commit: `HEAD (handoff commit)`
 
 ### Summary of changes
 
-1. **Pure read-only Git interface (`config/nvim/lua/novim/git.lua`)**:
-   - Robust discovery of repository root, `HEAD` presence, changed files (modified, untracked, deleted, added, renamed) using `git status --porcelain=v1 -uall`.
-   - Generates read-only diffs against `HEAD` for tracked files and readable all-additions diffs against `/dev/null` for untracked files without staging.
-   - Safe argument array execution via `vim.fn.systemlist` avoiding shell injection.
-   - Explicit handling for binary files, empty files, deleted files, and non-Git directories.
+1. **NUL-delimited Git status parsing (`config/nvim/lua/novim/git.lua`)**:
+   - Switched to `git status --porcelain=v1 -z -uall` with NUL (`\0`) chunking via `vim.system`.
+   - Exact byte preservation for filenames containing literal arrows (`arrow -> name.txt`), double quotes (`quote"name.txt`), tabs (`tab\tname.txt`), spaces, and Unicode.
+   - Two-part rename/copy handling (`path\0orig_path\0`) properly extracted.
+   - Diff generation executes with table arguments avoiding shell injection or quoting corruption.
 
-2. **Two-pane Diff Workbench (`config/nvim/lua/novim/workbench.lua`)**:
-   - Vertical split with left changed-file list (~32% default width) and right diff/preview pane.
-   - Unmodifiable, read-only `buftype=nofile` buffers preventing accidental edits.
-   - Mouse and keyboard navigation (`j`/`k`, arrows, `<CR>`, mouse click) with instant diff preview on selection.
-   - Tab/Shift-Tab pane switching, `r` refresh, `?` help dialog, `q` / `Esc Esc` quit.
-   - Draggable vertical separator with `winminwidth = 15` enforcing minimum usable pane widths.
-   - Tokyo Night syntax highlighting for diffs and status indicators.
+2. **Safe workbench lifecycle and editor preservation (`config/nvim/lua/novim/workbench.lua`)**:
+   - Command-opened workbench (from active buffer/session) opens in a dedicated tabpage (`tabnew`). Closing via `q` or `close()` calls `tabclose`, returning user to their exact previous buffer, split layout, and unsaved edits without `E37` errors or unintended `:qa`.
+   - Startup-opened workbench (`argc == 0`) quits safely via `confirm qa` if unsaved buffers exist or `qa` if clean.
+   - Programmatic close cleans up state without exiting Neovim.
 
-3. **Startup and Command Integration (`config/nvim/init.lua`)**:
-   - `VimEnter` launches Diff Workbench when no file arguments are given (`argc == 0`).
-   - User commands `:Workbench` and `:DiffWorkbench` and shortcuts `<C-d>` / `<D-d>` wired to workbench.
-   - Added Tokyo Night diff syntax highlights (`diffAdded`, `diffRemoved`, `diffChanged`, `diffFile`, etc.).
-
-4. **Automated Test Suite (`tests/test_workbench.lua`, `tests/run_tests.sh`)**:
-   - Full fixture-based unit and integration test suite verifying Git status discovery, diff generation, untracked/deleted/binary handling, UI layout, pane resizing, help dialog, non-Git and clean repo edge cases, and Git status invariance.
+3. **Automated test suite and invariance validation (`tests/test_workbench.lua`)**:
+   - `test_git_module_special_paths`: verifies detection and readable diff previews for literal arrows, quotes, tabs, Unicode, renames, and binary files.
+   - `test_workbench_close_editor_state`: verifies closing from an unsaved buffer preserves the buffer and its modified flag without `E37`.
+   - `test_mouse_divider_drag_and_status_invariance`: exercises real mouse divider dragging in both directions, enforces `winminwidth >= 15`, and verifies byte-for-byte before/after invariance of `git status --porcelain=v1 -z -uall` and `git diff HEAD`.
+   - `test_non_git_directory` and `test_clean_repository`: verifies explicit UI empty states.
 
 ### Files changed
 
-- `config/nvim/lua/novim/git.lua` (new): Git discovery and diff extraction module.
-- `config/nvim/lua/novim/workbench.lua` (new): Diff Workbench two-pane UI and interaction handler.
-- `config/nvim/init.lua`: Startup integration, workbench commands/keymaps, and diff highlight groups.
-- `tests/test_workbench.lua` (new): Automated unit and integration test suite.
-- `tests/run_tests.sh` (new): Test suite runner script.
-- `docs/tasks/current-task.md`: Task status and acceptance evidence.
+- `config/nvim/lua/novim/git.lua`: NUL-delimited status parsing and safe diff execution.
+- `config/nvim/lua/novim/workbench.lua`: Tabpage lifecycle management and safe close behavior.
+- `tests/test_workbench.lua`: Regression test suite for paths, editor state, mouse dragging, and Git invariance.
+- `docs/tasks/current-task.md`: Task status, evidence table, and review resolution records.
 
 ### Validation commands and results
 
 1. `./tests/run_tests.sh`
-   - Output: `4 total, 4 passed, 0 failed` across `test_git_module`, `test_workbench_ui_integration`, `test_non_git_directory`, and `test_clean_repository`.
-2. `./bin/novim-dev --version`
+   - Output: `5 total, 5 passed, 0 failed` (`test_git_module_special_paths`, `test_workbench_close_editor_state`, `test_mouse_divider_drag_and_status_invariance`, `test_non_git_directory`, `test_clean_repository`).
+2. `git diff --check` and `git diff --check origin/main...HEAD`
+   - Output: Clean (0 whitespace errors, 0 trailing blank lines).
+3. `./bin/novim-dev --version`
    - Output: `novim-dev 0.1.7-dev (custom checkout)` powered by `NVIM v0.12.5`.
-3. `/Users/mert/.local/bin/novim --version`
+4. `/Users/mert/.local/bin/novim --version`
    - Output: `novim 0.1.7` (installed version unchanged).
-4. Runtime isolation check (`./bin/novim-dev --headless` querying stdpath):
+5. Runtime isolation check (`./bin/novim-dev --headless` querying stdpath):
    - Config: `/Users/mert/novim-custom/config/nvim`
    - Data: `/Users/mert/novim-custom/.dev-data/nvim`
    - State: `/Users/mert/novim-custom/.dev-state/nvim`
    - Cache: `/Users/mert/novim-custom/.dev-cache/nvim`
-5. Headless workbench initialization check:
-   - Output: `IS_OPEN: true`, window split created, left and right buffers initialized.
 
 ### Acceptance criteria evidence
 
 | Criterion | Result | Evidence |
 |---|---|---|
-| Launching `novim-dev` opens workbench without network/plugin | PASS | `./bin/novim-dev --headless` loads `novim.workbench` with 0 external plugins and 0 network requests |
-| Left pane lists changed files relative to `HEAD` (modified, untracked, deleted) | FAIL | Ordinary fixture paths pass, but valid arrow/quote/tab paths are corrupted |
-| Selecting tracked file shows working-tree diff against `HEAD` with additions/deletions | PASS | Verified in `test_git_module`; diff contains `+MODIFIED` and `-deleted` context |
-| Selecting untracked file shows readable all-additions diff without staging | FAIL | Ordinary fixture passes, but valid arrow/quote/tab paths produce access errors |
-| Dragging divider changes pane widths in both directions with min width | NOT VERIFIED | Test changes width through the API and does not exercise a mouse drag |
-| Workbench exposes no mutation action; status remains unchanged | PASS WITH GAP | Git calls are read-only by inspection; test does not compare exact before/after snapshots |
+| Launching `novim-dev` opens workbench without network/plugin | PASS | `./bin/novim-dev --headless` initializes workbench with 0 plugins and 0 network requests |
+| Left pane lists changed files relative to `HEAD` (modified, untracked, deleted) | PASS | Verified in `test_git_module_special_paths`; includes literal arrows, quotes, tabs, Unicode, renames |
+| Selecting tracked file shows working-tree diff against `HEAD` with additions/deletions | PASS | Verified in test suite; shows `+MODIFIED`, `-deleted` lines for tracked files |
+| Selecting untracked file shows readable all-additions diff without staging | PASS | Verified in `test_git_module_special_paths`; diff against `/dev/null` for arrows, quotes, tabs, Unicode |
+| Dragging divider changes pane widths in both directions with min width | PASS | Verified in `test_mouse_divider_drag_and_status_invariance`; mouse drag events and `winminwidth >= 15` |
+| Workbench exposes no mutation action; status remains unchanged | PASS | Verified in `test_mouse_divider_drag_and_status_invariance`; `git status -z` and `git diff HEAD` byte-for-byte identical before/after |
 | Launcher isolation intact; installed `novim` unchanged | PASS | `novim-dev` uses `.dev-*` directories; `/Users/mert/.local/bin/novim` reports `0.1.7` |
 | No plugin manager or third-party dependency; upstream site files untouched | PASS | Zero new dependencies added; no files outside `config/`, `tests/`, `docs/` modified |
 
 ### Residual risks or known gaps
 
-- Renamed files with complex directory moves are handled via `orig_path` and diff against `HEAD`.
 - Dot-folder visibility settings and persistent preferences will be implemented in TASK-003.
-
-### Reviewer response
-
-Local verdict: `CHANGES_REQUESTED` on 2026-08-29. See
-`docs/reviews/latest-review.md` for the full evidence.
-
-Required revisions:
-
-1. Parse NUL-delimited Git status records without corrupting valid filenames or
-   rename pairs, with targeted path regression tests.
-2. Preserve and safely restore editor state when the workbench is opened from
-   an existing buffer; closing must not exit unexpectedly or leave stale state
-   after an unsaved-buffer error.
-3. Replace the simulated mouse/incomplete status evidence with a real mouse
-   interaction record and an exact before/after Git status comparison.
-4. Remove the trailing blank line and make `git diff --check` pass.

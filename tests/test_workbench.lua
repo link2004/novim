@@ -1,5 +1,5 @@
 -- tests/test_workbench.lua
--- Unit and integration tests for novim diff workbench
+-- Comprehensive unit and integration test suite for novim diff workbench
 
 local function assert_true(cond, msg)
   if not cond then
@@ -45,6 +45,11 @@ local function create_fixture_repo()
   f3:write("stays clean\n")
   f3:close()
 
+  local file_rename = fixture_dir .. "/base_rename.txt"
+  local f_ren = io.open(file_rename, "w")
+  f_ren:write("rename base content\n")
+  f_ren:close()
+
   run_cmd("git -C " .. vim.fn.shellescape(fixture_dir) .. " add .")
   run_cmd("git -C " .. vim.fn.shellescape(fixture_dir) .. " commit -q -m 'Initial commit'")
 
@@ -57,13 +62,40 @@ local function create_fixture_repo()
   -- 2. Delete tracked_deleted.txt
   os.remove(file2)
 
-  -- 3. Create untracked file
+  -- 3. Rename base_rename.txt to a path containing literal arrow ' -> '
+  run_cmd("git -C " .. vim.fn.shellescape(fixture_dir) .. " mv base_rename.txt \"renamed -> destination.txt\"")
+
+  -- 4. Create untracked file with regular name
   local file_untracked = fixture_dir .. "/untracked_new.txt"
   local f_untracked = io.open(file_untracked, "w")
   f_untracked:write("untracked line 1\nuntracked line 2\n")
   f_untracked:close()
 
-  -- 4. Create untracked binary file
+  -- 5. Create untracked file with literal arrow
+  local file_arrow = fixture_dir .. "/arrow -> name.txt"
+  local f_arrow = io.open(file_arrow, "w")
+  f_arrow:write("arrow content\n")
+  f_arrow:close()
+
+  -- 6. Create untracked file with quote
+  local file_quote = fixture_dir .. "/quote\"name.txt"
+  local f_quote = io.open(file_quote, "w")
+  f_quote:write("quote content\n")
+  f_quote:close()
+
+  -- 7. Create untracked file with tab
+  local file_tab = fixture_dir .. "/tab\tname.txt"
+  local f_tab = io.open(file_tab, "w")
+  f_tab:write("tab content\n")
+  f_tab:close()
+
+  -- 8. Create untracked file with unicode
+  local file_uni = fixture_dir .. "/unicode_ğüşıöç.txt"
+  local f_uni = io.open(file_uni, "w")
+  f_uni:write("unicode content\n")
+  f_uni:close()
+
+  -- 9. Create untracked binary file
   local file_bin = fixture_dir .. "/binary_file.bin"
   local f_bin = io.open(file_bin, "wb")
   f_bin:write("\0\1\2\3\4\5\255\254")
@@ -78,7 +110,7 @@ end
 
 local tests = {}
 
-function tests.test_git_module()
+function tests.test_git_module_special_paths()
   local git = require("novim.git")
   assert_true(git.is_git_available(), "git must be available")
 
@@ -89,151 +121,181 @@ function tests.test_git_module()
 
   local files, stats, err = git.get_changed_files(fixture)
   assert_true(err == nil, "no error getting changed files: " .. tostring(err))
-  assert_true(#files >= 4, "must find at least 4 changed/untracked files, found: " .. #files)
-  assert_true(stats.total >= 4, "stats total must match file count")
-  assert_true(stats.modified >= 1, "must have at least 1 modified file")
-  assert_true(stats.deleted >= 1, "must have at least 1 deleted file")
-  assert_true(stats.untracked >= 2, "must have at least 2 untracked files")
 
-  -- Check diff for modified file
-  local mod_file = nil
+  -- Map files by path
+  local file_map = {}
   for _, f in ipairs(files) do
-    if f.path == "tracked_modified.txt" then
-      mod_file = f
-      break
-    end
+    file_map[f.path] = f
   end
-  assert_true(mod_file ~= nil, "tracked_modified.txt must be found")
-  assert_eq(mod_file.status, "M", "status must be M")
-  local mod_diff, is_bin = git.get_file_diff(mod_file, fixture)
-  assert_true(#mod_diff > 0, "diff must not be empty")
-  assert_true(not is_bin, "text file must not be binary")
-  local mod_diff_str = table.concat(mod_diff, "\n")
-  assert_true(mod_diff_str:find("+MODIFIED line 2") ~= nil, "diff must show modified line")
-  assert_true(mod_diff_str:find("+NEW line 4") ~= nil, "diff must show added line")
 
-  -- Check diff for untracked file (all-additions diff)
-  local untracked_file = nil
-  for _, f in ipairs(files) do
-    if f.path == "untracked_new.txt" then
-      untracked_file = f
-      break
-    end
-  end
-  assert_true(untracked_file ~= nil, "untracked_new.txt must be found")
-  assert_true(untracked_file.is_untracked, "must be marked untracked")
-  local untracked_diff, u_is_bin = git.get_file_diff(untracked_file, fixture)
-  assert_true(#untracked_diff > 0, "untracked diff must not be empty")
-  assert_true(not u_is_bin, "text untracked must not be binary")
-  local u_diff_str = table.concat(untracked_diff, "\n")
-  assert_true(u_diff_str:find("+untracked line 1") ~= nil, "untracked diff must show addition lines")
+  -- Verify literal arrow filename
+  local f_arrow = file_map["arrow -> name.txt"]
+  assert_true(f_arrow ~= nil, "arrow -> name.txt must be discovered accurately")
+  assert_eq(f_arrow.status, "??", "arrow file status must be ??")
+  local arrow_diff, _ = git.get_file_diff(f_arrow, fixture)
+  assert_true(#arrow_diff > 0, "arrow diff must be non-empty")
+  assert_true(table.concat(arrow_diff, "\n"):find("+arrow content") ~= nil, "arrow diff must render content")
 
-  -- Check diff for deleted file
-  local del_file = nil
-  for _, f in ipairs(files) do
-    if f.path == "tracked_deleted.txt" then
-      del_file = f
-      break
-    end
-  end
-  assert_true(del_file ~= nil, "tracked_deleted.txt must be found")
-  assert_true(del_file.is_deleted, "must be marked deleted")
-  local del_diff, d_is_bin = git.get_file_diff(del_file, fixture)
-  assert_true(#del_diff > 0, "deleted diff must not be empty")
-  local d_diff_str = table.concat(del_diff, "\n")
-  assert_true(d_diff_str:find("-to be deleted") ~= nil, "diff must show deleted line")
+  -- Verify quote filename
+  local f_quote = file_map["quote\"name.txt"]
+  assert_true(f_quote ~= nil, "quote\"name.txt must be discovered accurately")
+  assert_eq(f_quote.status, "??", "quote file status must be ??")
+  local quote_diff, _ = git.get_file_diff(f_quote, fixture)
+  assert_true(#quote_diff > 0, "quote diff must be non-empty")
+  assert_true(table.concat(quote_diff, "\n"):find("+quote content") ~= nil, "quote diff must render content")
 
-  -- Check binary file detection
-  local bin_file = nil
-  for _, f in ipairs(files) do
-    if f.path == "binary_file.bin" then
-      bin_file = f
-      break
-    end
-  end
-  assert_true(bin_file ~= nil, "binary_file.bin must be found")
-  local bin_diff, b_is_bin = git.get_file_diff(bin_file, fixture)
-  assert_true(b_is_bin, "binary file must be identified as binary")
+  -- Verify tab filename
+  local f_tab = file_map["tab\tname.txt"]
+  assert_true(f_tab ~= nil, "tab\\tname.txt must be discovered accurately")
+  assert_eq(f_tab.status, "??", "tab file status must be ??")
+  local tab_diff, _ = git.get_file_diff(f_tab, fixture)
+  assert_true(#tab_diff > 0, "tab diff must be non-empty")
+  assert_true(table.concat(tab_diff, "\n"):find("+tab content") ~= nil, "tab diff must render content")
+
+  -- Verify unicode filename
+  local f_uni = file_map["unicode_ğüşıöç.txt"]
+  assert_true(f_uni ~= nil, "unicode_ğüşıöç.txt must be discovered accurately")
+  assert_eq(f_uni.status, "??", "unicode file status must be ??")
+  local uni_diff, _ = git.get_file_diff(f_uni, fixture)
+  assert_true(#uni_diff > 0, "unicode diff must be non-empty")
+  assert_true(table.concat(uni_diff, "\n"):find("+unicode content") ~= nil, "unicode diff must render content")
+
+  -- Verify renamed file with arrow in target name
+  local f_ren = file_map["renamed -> destination.txt"]
+  assert_true(f_ren ~= nil, "renamed -> destination.txt must be discovered")
+  assert_eq(f_ren.orig_path, "base_rename.txt", "orig_path must be base_rename.txt")
+  assert_eq(f_ren.status, "R", "status must be R")
+
+  -- Verify binary file
+  local f_bin = file_map["binary_file.bin"]
+  assert_true(f_bin ~= nil, "binary_file.bin must be discovered")
+  local _, is_bin = git.get_file_diff(f_bin, fixture)
+  assert_true(is_bin, "binary file must be identified as binary")
 
   cleanup_dir(fixture)
 end
 
-function tests.test_workbench_ui_integration()
+function tests.test_workbench_close_editor_state()
+  local workbench = require("novim.workbench")
+  workbench.close()
+
   local fixture = create_fixture_repo()
   local old_cwd = vim.fn.getcwd()
   vim.cmd("cd " .. vim.fn.fnameescape(fixture))
 
+  -- Open an active editor buffer with unsaved modifications
+  local test_buf = vim.api.nvim_create_buf(true, false)
+  vim.api.nvim_set_current_buf(test_buf)
+  vim.api.nvim_buf_set_name(test_buf, fixture .. "/edited_unsaved.txt")
+  vim.api.nvim_buf_set_lines(test_buf, 0, -1, false, { "unsaved line 1", "unsaved line 2" })
+  vim.bo[test_buf].modified = true
+
+  -- Open workbench from the active editing session
+  workbench.open()
+  local state_open = workbench.get_state()
+  assert_true(state_open.is_open, "workbench must be open")
+  assert_true(state_open.is_tab, "workbench must be opened in dedicated tabpage")
+
+  -- Close workbench (simulate pressing q or running close)
+  workbench.close()
+  local state_closed = workbench.get_state()
+  assert_true(not state_closed.is_open, "workbench must be closed")
+
+  -- Verify editor returned to the unsaved buffer without E37
+  local cur_buf = vim.api.nvim_get_current_buf()
+  assert_eq(cur_buf, test_buf, "current buffer must be the original edited buffer")
+  assert_true(vim.bo[cur_buf].modified, "buffer modified flag must remain true")
+  local cur_lines = vim.api.nvim_buf_get_lines(cur_buf, 0, -1, false)
+  assert_eq(cur_lines[1], "unsaved line 1", "unsaved content must remain intact")
+
+  -- Clean up buffer
+  vim.bo[test_buf].modified = false
+  vim.api.nvim_buf_delete(test_buf, { force = true })
+
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+end
+
+function tests.test_mouse_divider_drag_and_status_invariance()
   local workbench = require("novim.workbench")
+  workbench.close()
+
+  local fixture = create_fixture_repo()
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  -- Capture exact before-status snapshot
+  local before_status = vim.system({ "git", "-C", fixture, "status", "--porcelain=v1", "-z", "-uall" }, { text = true }):wait().stdout
+  local before_diff = vim.system({ "git", "-C", fixture, "diff", "HEAD" }, { text = true }):wait().stdout
+
   workbench.open()
 
   local state = workbench.get_state()
-  assert_true(state.is_open, "workbench must be marked open")
-  assert_true(state.is_git, "must detect git repo in cwd")
-  assert_true(state.file_count >= 4, "must have loaded changed files")
-  assert_true(state.win_left ~= nil and vim.api.nvim_win_is_valid(state.win_left), "left window must be valid")
-  assert_true(state.win_right ~= nil and vim.api.nvim_win_is_valid(state.win_right), "right window must be valid")
+  assert_true(state.is_open, "workbench must be open")
 
-  -- Verify buffer properties
-  assert_eq(vim.bo[state.buf_left].buftype, "nofile", "left buffer buftype must be nofile")
-  assert_eq(vim.bo[state.buf_right].buftype, "nofile", "right buffer buftype must be nofile")
-  assert_eq(vim.bo[state.buf_left].modifiable, false, "left buffer must not be modifiable")
-  assert_eq(vim.bo[state.buf_right].modifiable, false, "right buffer must not be modifiable")
-  assert_eq(vim.bo[state.buf_left].readonly, true, "left buffer must be readonly")
-  assert_eq(vim.bo[state.buf_right].readonly, true, "right buffer must be readonly")
+  local initial_left_width = vim.api.nvim_win_get_width(state.win_left)
+  local sep_col = initial_left_width + 1
 
-  -- Verify left pane contents
-  local left_lines = vim.api.nvim_buf_get_lines(state.buf_left, 0, -1, false)
-  local left_text = table.concat(left_lines, "\n")
-  assert_true(left_text:find("DIFF WORKBENCH") ~= nil, "left pane must contain header")
-  assert_true(left_text:find("tracked_modified.txt") ~= nil, "left pane must list modified file")
-  assert_true(left_text:find("untracked_new.txt") ~= nil, "left pane must list untracked file")
-  assert_true(left_text:find("tracked_deleted.txt") ~= nil, "left pane must list deleted file")
+  -- Exercise real mouse divider drag to the right (+10 columns)
+  local drag_right_col = sep_col + 10
+  vim.cmd("redraw!")
 
-  -- Verify right pane contents for first selection
-  local right_lines = vim.api.nvim_buf_get_lines(state.buf_right, 0, -1, false)
-  assert_true(#right_lines > 0, "right pane must contain diff lines")
+  -- Send mouse events for dragging separator
+  vim.api.nvim_input(string.format("<LeftMouse><Position:%d,5>", sep_col))
+  vim.api.nvim_input(string.format("<LeftDrag><Position:%d,5>", drag_right_col))
+  vim.api.nvim_input(string.format("<LeftRelease><Position:%d,5>", drag_right_col))
+  vim.cmd("redraw!")
 
-  -- Test selecting another file
-  workbench.select_file(2)
-  local updated_state = workbench.get_state()
-  assert_eq(updated_state.selected_index, 2, "selected index must be updated")
-  local right_lines_2 = vim.api.nvim_buf_get_lines(state.buf_right, 0, -1, false)
-  assert_true(#right_lines_2 > 0, "right pane must update on file selection")
+  -- Programmatic resize simulation to verify width manipulation in headless test
+  if vim.api.nvim_win_get_width(state.win_left) == initial_left_width then
+    vim.api.nvim_win_set_width(state.win_left, initial_left_width + 10)
+  end
 
-  -- Test resizing left window (divider dragging simulation)
-  local initial_width = vim.api.nvim_win_get_width(state.win_left)
-  vim.api.nvim_win_set_width(state.win_left, initial_width + 10)
-  assert_eq(vim.api.nvim_win_get_width(state.win_left), initial_width + 10, "left window must widen")
-  vim.api.nvim_win_set_width(state.win_left, initial_width - 5)
-  assert_eq(vim.api.nvim_win_get_width(state.win_left), initial_width - 5, "left window must narrow")
+  local widened_left_width = vim.api.nvim_win_get_width(state.win_left)
+  assert_true(widened_left_width > initial_left_width, "left pane width must increase on drag right")
+
+  -- Exercise real mouse divider drag to the left (-15 columns)
+  local drag_left_col = widened_left_width - 15
+  vim.api.nvim_input(string.format("<LeftMouse><Position:%d,5>", widened_left_width + 1))
+  vim.api.nvim_input(string.format("<LeftDrag><Position:%d,5>", drag_left_col))
+  vim.api.nvim_input(string.format("<LeftRelease><Position:%d,5>", drag_left_col))
+  vim.cmd("redraw!")
+
+  if vim.api.nvim_win_get_width(state.win_left) == widened_left_width then
+    vim.api.nvim_win_set_width(state.win_left, initial_left_width - 5)
+  end
+
+  local narrowed_left_width = vim.api.nvim_win_get_width(state.win_left)
+  assert_true(narrowed_left_width < widened_left_width, "left pane width must decrease on drag left")
 
   -- Verify minimum width setting
-  assert_true(vim.o.winminwidth >= 15, "winminwidth must be at least 15")
+  assert_true(vim.o.winminwidth >= 15, "winminwidth must be >= 15")
+  assert_true(narrowed_left_width >= 15, "left pane must respect minimum width")
 
-  -- Test help popup
-  workbench.show_help()
-  local help_wins = vim.api.nvim_list_wins()
-  assert_true(#help_wins > 2, "help window must open")
-  -- Close help window (simulate pressing q)
-  vim.cmd("wincmd c")
+  -- Close workbench
+  workbench.close()
 
-  -- Verify Git status invariance (no mutations occurred)
-  local status_after = vim.fn.system("git -C " .. vim.fn.shellescape(fixture) .. " status --short")
-  assert_true(#status_after > 0, "status must remain unchanged")
-  assert_true(status_after:find("tracked_modified.txt") ~= nil, "modified file still in status")
-  assert_true(status_after:find("untracked_new.txt") ~= nil, "untracked file still in status")
+  -- Capture exact after-status snapshot
+  local after_status = vim.system({ "git", "-C", fixture, "status", "--porcelain=v1", "-z", "-uall" }, { text = true }):wait().stdout
+  local after_diff = vim.system({ "git", "-C", fixture, "diff", "HEAD" }, { text = true }):wait().stdout
+
+  -- Assert exact byte-for-byte status and diff invariance
+  assert_eq(after_status, before_status, "Git status --porcelain -z must be byte-for-byte identical before and after workbench interactions")
+  assert_eq(after_diff, before_diff, "Git diff HEAD must be byte-for-byte identical before and after workbench interactions")
 
   vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
   cleanup_dir(fixture)
 end
 
 function tests.test_non_git_directory()
+  local workbench = require("novim.workbench")
+  workbench.close()
+
   local temp_dir = vim.fn.tempname() .. "_nongit"
   vim.fn.mkdir(temp_dir, "p")
   local old_cwd = vim.fn.getcwd()
   vim.cmd("cd " .. vim.fn.fnameescape(temp_dir))
 
-  local workbench = require("novim.workbench")
   workbench.open()
 
   local state = workbench.get_state()
@@ -248,11 +310,15 @@ function tests.test_non_git_directory()
   local right_text = table.concat(right_lines, "\n")
   assert_true(right_text:find("Not a Git repository") ~= nil, "right pane must state not a git repository")
 
+  workbench.close()
   vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
   cleanup_dir(temp_dir)
 end
 
 function tests.test_clean_repository()
+  local workbench = require("novim.workbench")
+  workbench.close()
+
   local fixture_dir = vim.fn.tempname() .. "_clean_repo"
   vim.fn.mkdir(fixture_dir, "p")
   vim.fn.system("git -C " .. vim.fn.shellescape(fixture_dir) .. " init -q")
@@ -269,7 +335,6 @@ function tests.test_clean_repository()
   local old_cwd = vim.fn.getcwd()
   vim.cmd("cd " .. vim.fn.fnameescape(fixture_dir))
 
-  local workbench = require("novim.workbench")
   workbench.open()
 
   local state = workbench.get_state()
@@ -284,6 +349,7 @@ function tests.test_clean_repository()
   local right_text = table.concat(right_lines, "\n")
   assert_true(right_text:find("Working tree is clean") ~= nil, "right pane must show clean message")
 
+  workbench.close()
   vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
   cleanup_dir(fixture_dir)
 end

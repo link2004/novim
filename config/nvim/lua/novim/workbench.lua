@@ -8,6 +8,8 @@ local M = {}
 -- State
 local state = {
   is_open = false,
+  is_tab = false,
+  tab_id = nil,
   is_git = false,
   repo_root = nil,
   has_head = false,
@@ -95,8 +97,10 @@ function M.render_left_pane()
   if not state.buf_left or not vim.api.nvim_buf_is_valid(state.buf_left) then
     return
   end
+
   vim.bo[state.buf_left].readonly = false
   vim.bo[state.buf_left].modifiable = true
+
   local lines = {}
   local highlights = {} -- list of { line, col_start, col_end, group }
   state.line_to_file_index = {}
@@ -163,7 +167,12 @@ function M.render_left_pane()
         status_label = status_label .. " "
       end
 
-      local line_text = string.format(" %s [%s] %s", marker, status_label, file.path)
+      local display_name = file.path
+      if file.orig_path then
+        display_name = file.orig_path .. " -> " .. file.path
+      end
+
+      local line_text = string.format(" %s [%s] %s", marker, status_label, display_name)
       table.insert(lines, line_text)
 
       local line_idx = #lines - 1
@@ -219,8 +228,10 @@ function M.render_right_pane()
   if not state.buf_right or not vim.api.nvim_buf_is_valid(state.buf_right) then
     return
   end
+
   vim.bo[state.buf_right].readonly = false
   vim.bo[state.buf_right].modifiable = true
+
   local lines = {}
   local is_diff_view = true
 
@@ -429,11 +440,32 @@ function M.show_help()
   end
 end
 
---- Close workbench
-function M.close()
-  state.is_open = false
+--- Close workbench safely and preserve editor layout
+---@param opts? { quit?: boolean }
+function M.close(opts)
+  if not state.is_open then
+    return
+  end
 
-  -- If workbench windows are open, close or quit safely
+  opts = opts or {}
+  local is_tab_mode = state.is_tab
+  local tab_id = state.tab_id
+  local all_tabs = vim.api.nvim_list_tabpages()
+
+  -- If opened in a dedicated tab and multiple tabs exist, close the tab cleanly
+  if is_tab_mode and #all_tabs > 1 and tab_id and vim.api.nvim_tabpage_is_valid(tab_id) then
+    state.is_open = false
+    state.is_tab = false
+    state.tab_id = nil
+    state.buf_left = nil
+    state.win_left = nil
+    state.buf_right = nil
+    state.win_right = nil
+    pcall(vim.cmd, "tabclose")
+    return
+  end
+
+  -- If opened as a split alongside other editor windows
   local wins = {}
   if state.win_left and vim.api.nvim_win_is_valid(state.win_left) then
     table.insert(wins, state.win_left)
@@ -442,14 +474,55 @@ function M.close()
     table.insert(wins, state.win_right)
   end
 
-  -- If only workbench windows exist, quit Neovim
   local all_wins = vim.api.nvim_list_wins()
-  if #all_wins <= #wins then
-    vim.cmd("qa")
-  else
+
+  if #all_wins > #wins then
+    -- Other editor windows exist: close workbench windows without exiting Neovim
+    state.is_open = false
     for _, w in ipairs(wins) do
       pcall(vim.api.nvim_win_close, w, true)
     end
+    state.win_left = nil
+    state.win_right = nil
+    state.buf_left = nil
+    state.buf_right = nil
+    return
+  end
+
+  -- Workbench is the only UI
+  if opts.quit then
+    -- User explicitly pressed q in standalone startup mode: check unsaved buffers
+    local unsaved = false
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].modified then
+        unsaved = true
+        break
+      end
+    end
+
+    if unsaved then
+      local ok = pcall(vim.cmd, "confirm qa")
+      if not ok then
+        return
+      end
+    else
+      state.is_open = false
+      pcall(vim.cmd, "qa")
+    end
+  else
+    -- Programmatic close without quitting editor
+    state.is_open = false
+    if state.win_right and vim.api.nvim_win_is_valid(state.win_right) then
+      pcall(vim.api.nvim_win_close, state.win_right, true)
+    end
+    if state.win_left and vim.api.nvim_win_is_valid(state.win_left) then
+      local empty_buf = vim.api.nvim_create_buf(true, false)
+      pcall(vim.api.nvim_win_set_buf, state.win_left, empty_buf)
+    end
+    state.win_left = nil
+    state.win_right = nil
+    state.buf_left = nil
+    state.buf_right = nil
   end
 end
 
@@ -459,6 +532,9 @@ function M.open()
 
   -- If already open, focus left window and refresh
   if state.is_open and state.win_left and vim.api.nvim_win_is_valid(state.win_left) then
+    if state.tab_id and vim.api.nvim_tabpage_is_valid(state.tab_id) then
+      vim.api.nvim_set_current_tabpage(state.tab_id)
+    end
     vim.api.nvim_set_current_win(state.win_left)
     M.refresh()
     return
@@ -468,8 +544,23 @@ function M.open()
   vim.opt.mouse = "a"
   vim.opt.winminwidth = 15
 
-  -- Close other scratch windows and reset to single window
-  pcall(vim.cmd, "only")
+  -- Check if we are opening from an existing editing session with active files/buffers
+  local current_buf = vim.api.nvim_get_current_buf()
+  local buf_name = vim.api.nvim_buf_get_name(current_buf)
+  local is_modified = vim.bo[current_buf].modified
+  local is_existing_session = (buf_name ~= "" or is_modified or #vim.api.nvim_list_wins() > 1 or #vim.api.nvim_list_tabpages() > 1)
+
+  if is_existing_session then
+    -- Open workbench in a dedicated tabpage so user's existing layout and unsaved edits remain intact
+    vim.cmd("tabnew")
+    state.is_tab = true
+    state.tab_id = vim.api.nvim_get_current_tabpage()
+  else
+    vim.cmd("silent! only")
+    state.is_tab = false
+    state.tab_id = vim.api.nvim_get_current_tabpage()
+  end
+
   -- Create buffers
   state.buf_left = vim.api.nvim_create_buf(false, true)
   state.buf_right = vim.api.nvim_create_buf(false, true)
@@ -590,8 +681,8 @@ function M.open()
     vim.keymap.set("n", "r", M.refresh, opts)
     vim.keymap.set("n", "<C-r>", M.refresh, opts)
     vim.keymap.set("n", "?", M.show_help, opts)
-    vim.keymap.set("n", "q", M.close, opts)
-    vim.keymap.set("n", "<Esc><Esc>", M.close, opts)
+    vim.keymap.set("n", "q", function() M.close({ quit = true }) end, opts)
+    vim.keymap.set("n", "<Esc><Esc>", function() M.close({ quit = true }) end, opts)
   end
 
   -- Keymaps for Right Buffer
@@ -615,8 +706,8 @@ function M.open()
     vim.keymap.set("n", "r", M.refresh, opts)
     vim.keymap.set("n", "<C-r>", M.refresh, opts)
     vim.keymap.set("n", "?", M.show_help, opts)
-    vim.keymap.set("n", "q", M.close, opts)
-    vim.keymap.set("n", "<Esc><Esc>", M.close, opts)
+    vim.keymap.set("n", "q", function() M.close({ quit = true }) end, opts)
+    vim.keymap.set("n", "<Esc><Esc>", function() M.close({ quit = true }) end, opts)
   end
 
   set_left_maps(state.buf_left)
@@ -641,6 +732,8 @@ end
 function M.get_state()
   return {
     is_open = state.is_open,
+    is_tab = state.is_tab,
+    tab_id = state.tab_id,
     is_git = state.is_git,
     repo_root = state.repo_root,
     has_head = state.has_head,
