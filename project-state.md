@@ -4,14 +4,14 @@ Updated: 2026-08-29
 Repository: `novim-custom`
 Lifecycle: `ACTIVE_DEVELOPMENT`
 Delivery policy: `LIGHTWEIGHT`
-Current task: `TASK-003`
+Current task: `TASK-004`
 Base branch: `main`
-Task branch: `task/TASK-003-project-browser-settings`
+Task branch: `task/TASK-004-source-navigation`
 Pull request: `NOT_OPEN`
 Remote checks: `OPTIONAL / NOT_RUN`
-Last accepted task: `TASK-002`
-Last accepted commit: `794a7c6fe09abb335fb7c14273614a796b365631`
-Last merged pull request: `https://github.com/medonmez/novim-custom/pull/2`
+Last accepted task: `TASK-003`
+Last accepted commit: `6a9be23522c43110dd4c4053f67ab22c8586d4b9`
+Last merged pull request: `https://github.com/medonmez/novim-custom/pull/3`
 
 ## Current truth
 
@@ -30,6 +30,11 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/2`
 - Product direction is now accepted for planning: a VS Code-like, two-pane,
   mouse-resizable, read-only Git diff workbench with a settings surface for
   dot-folder visibility and no plugin dependency.
+- `TASK-003` was locally reviewed `APPROVED`, delivered through GitHub PR #3,
+  and verified in merge commit `6a9be23522c43110dd4c4053f67ab22c8586d4b9` on
+  `origin/main`. The project browser hides dot-prefixed entries by default,
+  persists the visibility setting under isolated state, filters directory
+  previews consistently, and surfaces settings-write failures.
 - `TASK-002` candidate `54ad217047eb07b75b08697129cde3c905418443`
   received local verdict `APPROVED`, was delivered through GitHub PR #2, and
   is present in merge commit `794a7c6fe09abb335fb7c14273614a796b365631` on
@@ -39,12 +44,10 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/2`
 
 ## Active blockers
 
-- TASK-003 local review is `CHANGES_REQUESTED` at candidate `c1fffc1`. The same
-  isolated branch remains active; no PR has been opened and no delivery claim
-  is made.
+- No active blocker. TASK-004 is planned on the new isolated branch
+  `task/TASK-004-source-navigation` from the verified TASK-003 merge baseline.
 
 ## Next orchestration action
 
-Return TASK-003 to the implementer on
-`task/TASK-003-project-browser-settings`; address the latest review findings,
-rerun validation, and stop at `READY_FOR_REVIEW` for another local review.
+Implement TASK-004 on `task/TASK-004-source-navigation`, preserving the
+accepted TASK-002 and TASK-003 read-only, isolated-runtime contracts.
