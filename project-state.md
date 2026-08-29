@@ -1,6 +1,6 @@
 # Project State
 
-Updated: 2026-08-27
+Updated: 2026-08-29
 Repository: `novim-custom`
 Lifecycle: `ACTIVE_DEVELOPMENT`
 Delivery policy: `LIGHTWEIGHT`
@@ -30,13 +30,19 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/1`
 - Product direction is now accepted for planning: a VS Code-like, two-pane,
   mouse-resizable, read-only Git diff workbench with a settings surface for
   dot-folder visibility and no plugin dependency.
+- `TASK-002` candidate `6d6edd81bed671bce81aeca259214cdcf31f2ac9`
+  received local verdict `CHANGES_REQUESTED`: valid quoted/special Git paths
+  are corrupted, command-opened workbench close behavior breaks editor state,
+  required mouse/status evidence is incomplete, and `git diff --check` fails.
 
 ## Active blockers
 
-- None for `TASK-002` or the currently defined feature direction.
+- `TASK-002` requires implementation revisions recorded in
+  `docs/reviews/latest-review.md`. This is not a product-decision blocker.
 
 ## Next orchestration action
 
-Implement `TASK-002` on `task/TASK-002-diff-workbench` using the
-`$stateless-implementer` workflow. Stop at `READY_FOR_REVIEW` with a complete
-local fixture and mouse-interaction validation record.
+Revise `TASK-002` on `task/TASK-002-diff-workbench` using the
+`$stateless-implementer` workflow. Address every finding in
+`docs/reviews/latest-review.md`, then stop at `READY_FOR_REVIEW` with a new
+candidate commit and complete local validation evidence.

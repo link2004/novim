@@ -1,8 +1,8 @@
 # Current Task
 
-Updated: 2026-08-27
+Updated: 2026-08-29
 Task ID: `TASK-002`
-Status: `READY_FOR_REVIEW`
+Status: `CHANGES_REQUESTED`
 Delivery policy: `LIGHTWEIGHT`
 Base branch: `main`
 Task branch: `task/TASK-002-diff-workbench`
@@ -59,13 +59,13 @@ review slice before persistent settings and broader file navigation.
 
 - [x] Launching `novim-dev` in a fixture Git repository opens the workbench
       without requiring a network connection or a plugin installation.
-- [x] The left pane identifies changed tracked files relative to `HEAD` and
+- [ ] The left pane identifies changed tracked files relative to `HEAD` and
       includes at least modified and untracked fixture files.
 - [x] Selecting a tracked file shows its working-tree diff against `HEAD` in
       the right pane, with enough context to identify additions and deletions.
-- [x] Selecting an untracked file shows its complete readable new-file view or
+- [ ] Selecting an untracked file shows its complete readable new-file view or
       an equivalent all-additions diff without staging the file.
-- [x] Dragging the divider with the mouse changes the left/right pane widths in
+- [ ] Dragging the divider with the mouse changes the left/right pane widths in
       both directions and respects minimum usable widths.
 - [x] The workbench exposes no action that stages, commits, pushes, discards,
       or otherwise mutates Git state; opening and quitting it leaves the fixture
@@ -123,8 +123,8 @@ review slice before persistent settings and broader file navigation.
 
 ## Implementer handoff
 
-Status: `READY_FOR_REVIEW`
-Candidate commit: `HEAD (handoff commit)`
+Status: `CHANGES_REQUESTED`
+Candidate commit: `6d6edd81bed671bce81aeca259214cdcf31f2ac9`
 
 ### Summary of changes
 
@@ -180,11 +180,11 @@ Candidate commit: `HEAD (handoff commit)`
 | Criterion | Result | Evidence |
 |---|---|---|
 | Launching `novim-dev` opens workbench without network/plugin | PASS | `./bin/novim-dev --headless` loads `novim.workbench` with 0 external plugins and 0 network requests |
-| Left pane lists changed files relative to `HEAD` (modified, untracked, deleted) | PASS | Verified in `test_git_module` and `test_workbench_ui_integration`; captures all status types |
+| Left pane lists changed files relative to `HEAD` (modified, untracked, deleted) | FAIL | Ordinary fixture paths pass, but valid arrow/quote/tab paths are corrupted |
 | Selecting tracked file shows working-tree diff against `HEAD` with additions/deletions | PASS | Verified in `test_git_module`; diff contains `+MODIFIED` and `-deleted` context |
-| Selecting untracked file shows readable all-additions diff without staging | PASS | Verified in `test_git_module`; diff against `/dev/null` contains all added lines without staging |
-| Dragging divider changes pane widths in both directions with min width | PASS | Verified in `test_workbench_ui_integration`; `winminwidth >= 15` and width changes +10 / -5 |
-| Workbench exposes no mutation action; status remains unchanged | PASS | Verified in `test_workbench_ui_integration`; `git status --short` identical before and after |
+| Selecting untracked file shows readable all-additions diff without staging | FAIL | Ordinary fixture passes, but valid arrow/quote/tab paths produce access errors |
+| Dragging divider changes pane widths in both directions with min width | NOT VERIFIED | Test changes width through the API and does not exercise a mouse drag |
+| Workbench exposes no mutation action; status remains unchanged | PASS WITH GAP | Git calls are read-only by inspection; test does not compare exact before/after snapshots |
 | Launcher isolation intact; installed `novim` unchanged | PASS | `novim-dev` uses `.dev-*` directories; `/Users/mert/.local/bin/novim` reports `0.1.7` |
 | No plugin manager or third-party dependency; upstream site files untouched | PASS | Zero new dependencies added; no files outside `config/`, `tests/`, `docs/` modified |
 
@@ -193,3 +193,18 @@ Candidate commit: `HEAD (handoff commit)`
 - Renamed files with complex directory moves are handled via `orig_path` and diff against `HEAD`.
 - Dot-folder visibility settings and persistent preferences will be implemented in TASK-003.
 
+### Reviewer response
+
+Local verdict: `CHANGES_REQUESTED` on 2026-08-29. See
+`docs/reviews/latest-review.md` for the full evidence.
+
+Required revisions:
+
+1. Parse NUL-delimited Git status records without corrupting valid filenames or
+   rename pairs, with targeted path regression tests.
+2. Preserve and safely restore editor state when the workbench is opened from
+   an existing buffer; closing must not exit unexpectedly or leave stale state
+   after an unsaved-buffer error.
+3. Replace the simulated mouse/incomplete status evidence with a real mouse
+   interaction record and an exact before/after Git status comparison.
+4. Remove the trailing blank line and make `git diff --check` pass.
