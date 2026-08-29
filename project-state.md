@@ -4,13 +4,13 @@ Updated: 2026-08-30
 Repository: `novim-custom`
 Lifecycle: `ACTIVE_DEVELOPMENT`
 Delivery policy: `LIGHTWEIGHT`
-Current task: `TASK-007`
+Current task: `TASK-008`
 Base branch: `main`
-Task branch: `task/TASK-007-lazy-project-browser`
+Task branch: `task/TASK-008-settings-and-resizing`
 Pull request: `NOT_OPEN`
-Last accepted task: `TASK-006`
-Last accepted commit: `86ee75844308afbaf7e055bd86b6e5ca8b38a903`
-Last merged pull request: `https://github.com/medonmez/novim-custom/pull/8`
+Last accepted task: `TASK-007`
+Last accepted commit: `d8f567a2b1b20d6ab9f9afba7e5ab9d2442ce1c9`
+Last merged pull request: `https://github.com/medonmez/novim-custom/pull/10`
 
 ## Current truth
 
@@ -62,21 +62,26 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/8`
   `origin/main`. The derivative now has an offline deterministic
   package/install helper, local distribution and upstream sync runbooks, and
   offline package/fixture validation integrated into the test runner.
-- A fresh brief was accepted on 2026-08-30. TASK-007 is planned on
-  `task/TASK-007-lazy-project-browser` to remove recursive startup scanning;
-  TASK-008 and TASK-009 remain proposed follow-up slices for settings/
-  interaction and three-area diff rendering.
+- `TASK-007` was locally reviewed `APPROVED` at candidate
+  `48931884e679c55c2e5eb536706efc0fcd14d249`, delivered through GitHub PR #10,
+  and verified in merge commit `d8f567a2b1b20d6ab9f9afba7e5ab9d2442ce1c9` on
+  `origin/main`. The project browser now starts with a root-only lazy listing,
+  expands folders one level at a time for the session, filters dotfiles at
+  every level, and refuses true symlink ancestor cycles.
+- A fresh brief was accepted on 2026-08-30. TASK-008 is planned on
+  `task/TASK-008-settings-and-resizing` for themes, settings key help,
+  immediate settings close, and reliable pane resizing. TASK-009 remains a
+  proposed follow-up slice for three-area diff rendering.
 
 ## Active blockers
 
-- No active blocker. TASK-007 is planned from the verified `origin/main`
-  baseline. No hosted, production, recovery, or customer-acceptance claim is
-  made.
+- No active blocker. TASK-007 is accepted on `origin/main`, and TASK-008 is
+  planned from the verified `origin/main` baseline. No hosted, production,
+  recovery, or customer-acceptance claim is made.
 
 ## Next orchestration action
 
-Implement TASK-007 on its isolated task branch, then return a local handoff for
-review. TASK-001 through TASK-006 remain accepted; TASK-008 and TASK-009 must
-wait for their dependencies. The local distribution and upstream sync
-procedures remain documented in `docs/LOCAL_DISTRIBUTION.md` and
-`docs/UPSTREAM_SYNC.md`.
+Implement TASK-008 on its isolated task branch, then return a local handoff for
+review. TASK-001 through TASK-007 remain accepted; TASK-009 must wait for its
+dependency. The local distribution and upstream sync procedures remain
+documented in `docs/LOCAL_DISTRIBUTION.md` and `docs/UPSTREAM_SYNC.md`.
