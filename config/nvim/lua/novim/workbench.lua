@@ -332,7 +332,19 @@ end
 --- Render the right pane (Project File Preview or Git Diff Preview)
 function M.render_right_pane()
   if not state.buf_right or not vim.api.nvim_buf_is_valid(state.buf_right) then
-    return
+    state.buf_right = vim.api.nvim_create_buf(false, true)
+    pcall(vim.api.nvim_buf_set_name, state.buf_right, "[Workbench - Preview]")
+    vim.bo[state.buf_right].buftype = "nofile"
+    vim.bo[state.buf_right].bufhidden = "hide"
+    vim.bo[state.buf_right].swapfile = false
+    vim.bo[state.buf_right].buflisted = false
+  end
+
+  if state.win_right and vim.api.nvim_win_is_valid(state.win_right) then
+    local cur_buf = vim.api.nvim_win_get_buf(state.win_right)
+    if cur_buf ~= state.buf_right then
+      vim.api.nvim_win_set_buf(state.win_right, state.buf_right)
+    end
   end
 
   vim.bo[state.buf_right].readonly = false
@@ -457,6 +469,60 @@ function M.select_file(index)
     M.render_right_pane()
   end
 end
+--- Open a regular file in the editor (right pane)
+---@param entry? table
+---@return boolean success
+function M.open_file(entry)
+  entry = entry or (state.view_mode == "files" and state.project_files[state.selected_project_index] or nil)
+  if not entry then
+    return false
+  end
+
+  -- Directory selection must keep right pane in read-only directory inspection
+  if entry.is_dir then
+    M.render_right_pane()
+    return false
+  end
+
+  if not state.win_right or not vim.api.nvim_win_is_valid(state.win_right) then
+    return false
+  end
+
+  local full_path = entry.full_path or (state.root_dir .. "/" .. entry.path)
+  if vim.fn.filereadable(full_path) == 0 then
+    return false
+  end
+
+  -- Focus right window
+  vim.api.nvim_set_current_win(state.win_right)
+
+  -- Edit the file in right window
+  vim.cmd.edit(vim.fn.fnameescape(full_path))
+
+  -- Configure standard window options for editing in the right pane
+  if vim.api.nvim_win_is_valid(state.win_right) then
+    vim.wo[state.win_right].number = true
+    vim.wo[state.win_right].relativenumber = false
+    vim.wo[state.win_right].signcolumn = "auto"
+    vim.wo[state.win_right].wrap = false
+    vim.wo[state.win_right].cursorline = false
+    vim.wo[state.win_right].spell = false
+    vim.wo[state.win_right].foldenable = false
+  end
+
+  return true
+end
+
+--- Open currently selected item if it is a regular file
+---@return boolean success
+function M.open_selected_file()
+  if state.view_mode == "files" then
+    local entry = state.project_files[state.selected_project_index]
+    return M.open_file(entry)
+  end
+  return false
+end
+
 
 --- Switch active view mode
 ---@param mode "files" | "diff"
@@ -582,20 +648,22 @@ local function on_left_click()
   end
 end
 
+
 --- Show help popup
 function M.show_help()
   local help_lines = {
-    " novim-dev Workbench & Project Browser (Read-Only)",
+    " novim-dev Workbench & Project Browser",
     " ────────────────────────────────────────────────────────",
     " Views:",
     "   [1] or [b]       Project Files Browser",
     "   [2] or [d]       Git Diff Workbench (vs HEAD)",
     "   [s]              Settings (toggle dot-folders)",
     " ────────────────────────────────────────────────────────",
-    " Navigation:",
+    " Navigation & Editing:",
     "   j / k or ↑ / ↓   Move between items",
+    "   Enter / Double-Click  Open regular file in editor",
+    "   Space            Preview selected item",
     "   Left Click       Select item / switch tabs",
-    "   Enter / Space    Select item",
     "   Tab / S-Tab      Switch between left and right panes",
     "   Drag Divider     Resize left/right panes with mouse",
     "   r                Refresh files and Git status",
@@ -607,7 +675,7 @@ function M.show_help()
     "   Press [s] to open Settings and toggle visibility.",
     "   Settings persist across launches in isolated state.",
     " ────────────────────────────────────────────────────────",
-    " Note: Workbench is strictly read-only inspection.",
+    " Note: Git Diff is strictly read-only inspection.",
   }
 
   local width = 60
@@ -728,8 +796,6 @@ function M.close(opts)
   end
 end
 
---- Open the Workbench
----@param opts? { view?: "files" | "diff" }
 function M.open(opts)
   setup_highlights()
   opts = opts or {}
@@ -777,10 +843,11 @@ function M.open(opts)
 
   for _, buf in ipairs({ state.buf_left, state.buf_right }) do
     vim.bo[buf].buftype = "nofile"
-    vim.bo[buf].bufhidden = "wipe"
+    vim.bo[buf].bufhidden = "hide"
     vim.bo[buf].swapfile = false
     vim.bo[buf].buflisted = false
   end
+
 
   -- Setup left window
   state.win_left = vim.api.nvim_get_current_win()
@@ -871,7 +938,36 @@ function M.open(opts)
       local cursor = vim.api.nvim_win_get_cursor(0)
       if state.view_mode == "files" then
         local p_idx = state.line_to_project_index[cursor[1]]
-        if p_idx then M.select_file(p_idx) end
+        if p_idx then
+          state.selected_project_index = p_idx
+          local entry = state.project_files[p_idx]
+          if entry and not entry.is_dir then
+            M.open_file(entry)
+          else
+            M.render_left_pane()
+            M.render_right_pane()
+          end
+        end
+      else
+        local f_idx = state.line_to_file_index[cursor[1]]
+        if f_idx then M.select_file(f_idx) end
+      end
+    end, opts)
+
+    vim.keymap.set("n", "o", function()
+      local cursor = vim.api.nvim_win_get_cursor(0)
+      if state.view_mode == "files" then
+        local p_idx = state.line_to_project_index[cursor[1]]
+        if p_idx then
+          state.selected_project_index = p_idx
+          local entry = state.project_files[p_idx]
+          if entry and not entry.is_dir then
+            M.open_file(entry)
+          else
+            M.render_left_pane()
+            M.render_right_pane()
+          end
+        end
       else
         local f_idx = state.line_to_file_index[cursor[1]]
         if f_idx then M.select_file(f_idx) end
@@ -886,6 +982,25 @@ function M.open(opts)
       else
         local f_idx = state.line_to_file_index[cursor[1]]
         if f_idx then M.select_file(f_idx) end
+      end
+    end, opts)
+
+    -- Mouse navigation
+    vim.keymap.set("n", "<LeftMouse>", on_left_click, opts)
+    vim.keymap.set("n", "<2-LeftMouse>", function()
+      local mouse = vim.fn.getmousepos()
+      if mouse.winid == state.win_left and state.view_mode == "files" then
+        local p_idx = state.line_to_project_index[mouse.line]
+        if p_idx then
+          state.selected_project_index = p_idx
+          local entry = state.project_files[p_idx]
+          if entry and not entry.is_dir then
+            M.open_file(entry)
+          else
+            M.render_left_pane()
+            M.render_right_pane()
+          end
+        end
       end
     end, opts)
 
@@ -911,13 +1026,46 @@ function M.open(opts)
     -- View switching
     vim.keymap.set("n", "1", function() M.set_view("files") end, opts)
     vim.keymap.set("n", "b", function() M.set_view("files") end, opts)
+    vim.keymap.set("n", "f", function() M.set_view("files") end, opts)
     vim.keymap.set("n", "2", function() M.set_view("diff") end, opts)
-    -- Command line
-    vim.keymap.set("n", ":", ":", { buffer = buf, noremap = true, silent = false })
-
     vim.keymap.set("n", "d", function() M.set_view("diff") end, opts)
+    vim.keymap.set("n", "g", function() M.set_view("diff") end, opts)
     vim.keymap.set("n", "s", M.open_settings, opts)
     vim.keymap.set("n", "S", M.open_settings, opts)
+
+    -- Open file from preview pane
+    vim.keymap.set("n", "<CR>", function()
+      if state.view_mode == "files" then
+        local entry = state.project_files[state.selected_project_index]
+        if entry and not entry.is_dir then
+          M.open_file(entry)
+        end
+      end
+    end, opts)
+    vim.keymap.set("n", "e", function()
+      if state.view_mode == "files" then
+        local entry = state.project_files[state.selected_project_index]
+        if entry and not entry.is_dir then
+          M.open_file(entry)
+        end
+      end
+    end, opts)
+    vim.keymap.set("n", "o", function()
+      if state.view_mode == "files" then
+        local entry = state.project_files[state.selected_project_index]
+        if entry and not entry.is_dir then
+          M.open_file(entry)
+        end
+      end
+    end, opts)
+    vim.keymap.set("n", "<2-LeftMouse>", function()
+      if state.view_mode == "files" then
+        local entry = state.project_files[state.selected_project_index]
+        if entry and not entry.is_dir then
+          M.open_file(entry)
+        end
+      end
+    end, opts)
 
     -- Pane switching
     vim.keymap.set("n", "<Tab>", function()
@@ -961,6 +1109,7 @@ end
 ---@return table
 function M.get_state()
   local active_files = (state.view_mode == "diff") and state.files or state.project_files
+  local active_file = (state.view_mode == "diff") and state.files[state.selected_index] or state.project_files[state.selected_project_index]
   return {
     is_open = state.is_open,
     is_tab = state.is_tab,
@@ -979,6 +1128,7 @@ function M.get_state()
     project_stats = state.project_stats,
     selected_index = state.selected_index,
     selected_project_index = state.selected_project_index,
+    active_file = active_file,
     settings = settings.get_all(),
     header_line_count = state.header_line_count,
     win_left = state.win_left,
