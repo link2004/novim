@@ -7,11 +7,10 @@ Delivery policy: `LIGHTWEIGHT`
 Current task: `TASK-006`
 Base branch: `main`
 Task branch: `task/TASK-006-package-upstream-sync`
-Pull request: `NOT_OPEN`
-Remote checks: `OPTIONAL / NOT_RUN`
-Last accepted task: `TASK-005`
-Last accepted commit: `cd938e2ce0ef9e792b2979cd325e614a65d42590`
-Last merged pull request: `https://github.com/medonmez/novim-custom/pull/7`
+Pull request: https://github.com/medonmez/novim-custom/pull/8 (`MERGED`)
+Last accepted task: `TASK-006`
+Last accepted commit: `86ee75844308afbaf7e055bd86b6e5ca8b38a903`
+Last merged pull request: `https://github.com/medonmez/novim-custom/pull/8`
 
 ## Current truth
 
@@ -55,16 +54,23 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/7`
   `origin/main`. Native terminal mouse interaction was verified in an
   independent PTY, including bidirectional divider drag, minimum width
   behavior, and left-pane click selection without `E21`.
+- `TASK-006` was locally reviewed `APPROVED` at candidate
+  `08ca56ca7efcecb759412d4b6cafa60f33921d6a`, delivered through GitHub PR #8,
+  and verified in merge commit `86ee75844308afbaf7e055bd86b6e5ca8b38a903` on
+  `origin/main`. The derivative now has an offline deterministic
+  package/install helper, local distribution and upstream sync runbooks, and
+  offline package/fixture validation integrated into the test runner.
 
 ## Active blockers
 
-- No active blocker. TASK-006 is ready for local review on the isolated branch
-  `task/TASK-006-package-upstream-sync` from the verified `origin/main` tip
-  `bcdd81ce9e9d0a3badc21d220f98d31600167059`. No hosted, production,
-  recovery, or customer-acceptance claim is made.
+- No active blocker. TASK-006 is accepted on `origin/main`; the backlog is
+  empty. No hosted, production, recovery, or customer-acceptance claim is
+  made.
 
 ## Next orchestration action
 
-Review the TASK-006 handoff on `task/TASK-006-package-upstream-sync`, including
-the real package manifest, temporary install, offline fixture workflow, and
-full local validation before deciding lightweight delivery.
+Await a fresh user brief for the next slice. TASK-001 through TASK-006 are all
+accepted; do not invent new product scope without user direction. The local
+distribution and upstream sync procedures are documented in
+`docs/LOCAL_DISTRIBUTION.md` and `docs/UPSTREAM_SYNC.md` for future
+maintenance.
