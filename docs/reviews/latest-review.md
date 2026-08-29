@@ -1,69 +1,73 @@
 # Latest Review
 
 Updated: 2026-08-29
-Task ID: `TASK-003`
+Task ID: `TASK-004`
 Local verdict: `APPROVED`
 Delivery policy: `LIGHTWEIGHT`
-Baseline: `794a7c6fe09abb335fb7c14273614a796b365631` (`origin/main`)
-Candidate: `1a8fb4ac687afa169b6e83c55afb8a48e863a848`
-Task branch: `task/TASK-003-project-browser-settings`
-Pull request: `https://github.com/medonmez/novim-custom/pull/3`
+Baseline: `6a9be23522c43110dd4c4053f67ab22c8586d4b9` (`origin/main`)
+Candidate: `2449369d35be78228116b98ef539684f25ae9de2`
+Task branch: `task/TASK-004-source-navigation`
+Pull request: `NOT_OPEN`
 Remote checks: `OPTIONAL / NOT_RUN`
-Merge status: `MERGED`
-Target branch contains change: `YES` (`origin/main`)
+Merge status: `NOT_DELIVERED`
+Target branch contains change: `NO`
 
 ## Review result
 
-The two findings from the prior review are resolved in the candidate. Directory
-previews now apply the active dotfile visibility rule to immediate children and
-report counts for visible items plus hidden dot-items. Settings toggles now
-propagate write failures, retain the persisted/in-memory value on failure, and
-render a non-fatal warning without invoking the workbench refresh callback.
+The real branch delta was inspected against the recorded TASK-003 merge
+baseline. TASK-004 adds local source-file opening in the existing right pane,
+preserves the read-only directory and Git preview paths, restores the preview
+buffer when returning from an editor buffer, and makes Files/Git Diff
+navigation available from both workbench panes. The change remains within the
+recorded scope and preserves the isolated launcher, dotfile setting, read-only
+Git interface, native divider behavior, and installed-release boundary.
 
-The complete candidate diff is scoped to TASK-003 implementation, regression
-tests, and workflow records. It preserves the accepted read-only Git workbench,
-launcher isolation, installed release, and no-plugin boundary.
+No correctness, regression, security, privacy, data-integrity, public-contract,
+or scope issue remains for this local review.
 
 ## Findings
 
-None. No correctness, regression, security, privacy, data-integrity, public
-contract, or scope issue remains for this local review.
+None.
 
 ## Acceptance evidence
 
 | Criterion | Result | Evidence |
 |---|---|---|
-| Fixture launch shows regular project files/directories | PASS | `./tests/run_tests.sh` passed the project-browser fixture checks. |
-| Dot-prefixed entries hidden by default at nested levels | PASS | Automated tree tests cover root dotfiles, nested dotfiles, nested dot-folders, and their contents; the candidate also filters directory-preview children. |
-| Reachable, unambiguous settings toggle | PASS | Settings is reachable through `s`, `:Settings`, and the workbench header; rendered state is explicit `[ ] OFF` / `[X] ON`. |
-| Toggle reveals/hides normal and nested dot entries | PASS | Toggle regression covers root and nested entries in both directions; directory-preview filtering is tested in hidden and revealed states. |
-| Fresh-process persistence | PASS | Settings persistence code uses Neovim `stdpath("state")`, which `novim-dev` isolates to `.dev-state`; cache-reset persistence regression passed. |
-| Missing or malformed settings fallback | PASS | Missing, malformed JSON, and invalid-type cases fall back to `show_dotfiles=false` without throwing. |
-| TASK-002 diff/mouse/read-only invariance | PASS | Existing workbench regression tests passed, including divider bounds, mouse-selection safety, diff rendering, and byte-for-byte status/diff invariance. |
-| No Git mutation, network call, plugin dependency, or installed-release change | PASS | Candidate source inspection found no new mutation/network/plugin path; changed files are scoped; launcher and installed-release version checks passed. |
+| Regular visible files open in the normal editor | PASS | `workbench.lua:472-514` implements `open_file`; `./tests/run_tests.sh` passed `test_open_regular_file_in_editor`, including regular buffer options, right-window focus, left-pane preservation, and editable content. |
+| Directories remain read-only inspection | PASS | `workbench.lua:481-485` rejects directory opening and re-renders the preview; `test_directory_selection_preserves_inspection_no_file_open` passed with `buftype=nofile`, `readonly=true`, and `modifiable=false`. |
+| Files/Git Diff navigation and active tabs | PASS | `set_view`, `toggle_view`, header click handling, pane keymaps, commands, and global shortcuts were inspected; `test_view_switching_and_active_tab_rendering` and existing header-switch tests passed. |
+| Changed-file diff and Files return preserve state | PASS | Diff rendering continues through `git.get_file_diff(file, state.repo_root)`; `test_changed_file_diff_rendering_and_return_to_files` passed with unified `HEAD` diff output and preserved root/setting state. |
+| Dotfile filtering and persistence remain intact | PASS | Existing TASK-003 hidden/revealed, persistence, malformed-settings, and write-failure tests all passed in the 21-test run. |
+| TASK-002 read-only Git, untracked diff, mouse, divider, and minimum widths remain intact | PASS | Existing regression tests for special paths, untracked/changed diffs, mouse selection, divider bounds, and byte-for-byte Git invariance all passed. |
+| No Git mutation, network call, plugin dependency, or installed-release change | PASS | Product diff adds no Git-write or network path and no dependency; changed-file/scope inspection passed, `bin/novim-dev` and installed `novim` version checks passed, and the exact fixture Git status/diff invariance test passed. |
 
 ## Validation performed
 
-- `./tests/run_tests.sh`: passed, `14 total, 14 passed, 0 failed`.
-- `git diff --check 794a7c6fe09abb335fb7c14273614a796b365631..HEAD`: passed.
-- `bash -n bin/novim-dev tests/run_tests.sh`: passed.
-- `./bin/novim-dev --version`: passed, `0.1.7-dev` / Neovim `0.12.5`.
+- `./tests/run_tests.sh`: passed, `21 total, 21 passed, 0 failed`.
+- `./bin/novim-dev --version`: passed, `0.1.7-dev` / Neovim `v0.12.5`.
 - `/Users/mert/.local/bin/novim --version`: passed, installed `novim 0.1.7`.
-- Direct headless UI probe: forced a settings-file write failure, verified the
-  warning text was rendered, verified `show_dotfiles` stayed `false`, and
-  verified the modal remained usable.
-- Complete candidate diff, branch ancestry, remotes, and working-tree status
-  inspected; the task branch is isolated and clean, with no unrelated source
-  or untracked product files.
+- `bash -n bin/novim-dev tests/run_tests.sh`: passed.
+- `git diff --check 6a9be23522c43110dd4c4053f67ab22c8586d4b9..HEAD`: passed.
+- Direct headless probe from an existing file session opened a source file,
+  added an unsaved in-memory edit, closed the workbench tab, and verified the
+  original tab remained plus the source buffer retained its content and
+  `modified=true` state.
+- Candidate diff, branch ancestry, remotes, and working-tree status were
+  inspected. The task branch is isolated and clean before this review record;
+  no unrelated product or untracked files were present.
+
+Evidence is local review evidence only; no hosted, production, recovery, or
+customer-acceptance claim is made.
 
 ## Delivery decision
 
-`ACCEPTED` after lightweight PR #3 merge. Review and validation evidence is
-local, with remote branch containment verified separately; no hosted,
-production, recovery, or customer-acceptance claim is made.
+`APPROVED` for lightweight PR delivery. Push
+`task/TASK-004-source-navigation`, open or reuse its single PR targeting
+`main`, and merge promptly if it is mergeable and no explicit required check
+blocks it.
 
 ## Next action
 
-TASK-003 is complete. TASK-004 is now the single actionable planned task on
-`task/TASK-004-source-navigation` from `origin/main` merge commit
-`6a9be23522c43110dd4c4053f67ab22c8586d4b9`.
+Deliver the reviewed candidate through the task branch PR, verify the merged
+result is contained in `origin/main`, then reconcile TASK-004 as `ACCEPTED` and
+issue the next single actionable task.
