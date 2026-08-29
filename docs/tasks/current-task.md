@@ -2,11 +2,11 @@
 
 Updated: 2026-08-29
 Task ID: `TASK-006`
-Status: `PLANNED`
+Status: `READY_FOR_REVIEW`
 Delivery policy: `LIGHTWEIGHT`
 Base branch: `main`
 Task branch: `task/TASK-006-package-upstream-sync`
-Expected baseline: `cd938e2ce0ef9e792b2979cd325e614a65d42590` (`origin/main`)
+Expected baseline: `bcdd81ce9e9d0a3badc21d220f98d31600167059` (`origin/main`)
 Pull request: `NOT_OPEN`
 Remote checks: `OPTIONAL / NOT_RUN`
 
@@ -58,22 +58,22 @@ upstream changes.
 
 ## Acceptance criteria
 
-- [ ] A documented local packaging/install command produces or installs the
+- [x] A documented local packaging/install command produces or installs the
       derivative from this checkout using a temporary target during tests.
-- [ ] The package contains the required `novim-dev` launcher, `config/nvim`
+- [x] The package contains the required `novim-dev` launcher, `config/nvim`
       tree, bundled runtime assets, version identity, and license/attribution
       files, with no `.git` metadata, `.dev-*` state, credentials, or private
       runtime data included.
-- [ ] A temporary-target install runs `novim-dev --version` and a headless
+- [x] A temporary-target install runs `novim-dev --version` and a headless
       smoke check successfully without changing the installed `novim` command
       or the source checkout.
-- [ ] The safe upstream sync runbook documents explicit fetch/compare steps,
+- [x] The safe upstream sync runbook documents explicit fetch/compare steps,
       isolated branches, review checkpoints, conflict handling, and a
       reversible recovery path without implying automatic synchronization.
-- [ ] The documented workflow preserves the read-only Git, isolated-runtime,
+- [x] The documented workflow preserves the read-only Git, isolated-runtime,
       no-default-network, and installed-release boundaries accepted by
       TASK-001 through TASK-005.
-- [ ] Existing `./tests/run_tests.sh`, launcher syntax, version checks, and
+- [x] Existing `./tests/run_tests.sh`, launcher syntax, version checks, and
       `git diff --check` remain passing, with package/install checks offline.
 
 ## Decision guardrails
@@ -130,5 +130,57 @@ upstream changes.
 
 ## Implementation handoff
 
-Not started. Use `$stateless-implementer` on the recorded isolated branch and
-stop at `READY_FOR_REVIEW` with a local validation summary.
+Status: `READY_FOR_REVIEW`
+Candidate commit: `HEAD (handoff commit)`
+
+Outcome summary: Added an offline, deterministic allowlist package/archive
+helper and empty-target installer for the separate `novim-dev` derivative;
+documented package/removal boundaries and an explicit, review-gated upstream
+sync procedure; and added offline package/install/fixture validation to the
+existing test runner.
+
+Files changed:
+
+- `bin/novim-dev-package` — deterministic `package` and safe `install`
+  commands with manifest, path, type, and private/runtime-entry validation.
+- `tests/run_package_tests.sh` — archive determinism/manifest checks,
+  temporary install and headless launcher smoke, non-overwrite checks, local
+  fixture fetch/compare, and source/installed-release invariance checks.
+- `tests/run_tests.sh` and `tests/run_smoke_tests.sh` — package suite entry
+  point and tracked-product regression check compatible with new task files.
+- `docs/LOCAL_DISTRIBUTION.md` — identity, contents, local install,
+  verification, removal, and isolation guide.
+- `docs/UPSTREAM_SYNC.md` — explicit fetch/compare, isolated-branch review,
+  conflict handling, and recovery runbook.
+- `README.md`, `docs/architecture.md`, and `docs/repository.md` — local
+  distribution and synchronization documentation routes.
+- `docs/tasks/current-task.md`, `docs/tasks/backlog.md`, `project-state.md`,
+  and `docs/project.json` — TASK-006 state, actual `origin/main` baseline,
+  and handoff records.
+
+Validation performed:
+
+- `./tests/run_tests.sh`: PASS (21/21 workbench tests, offline package tests,
+  and 6/6 regression smoke tests).
+- `./tests/run_package_tests.sh`: PASS (byte-identical repeated archives,
+  required manifest and exclusions, temporary install/version/help/headless
+  smoke, nonempty-target/overwrite denials, local-only sync fixture, source
+  and installed-release invariance).
+- `./tests/run_tests.sh --smoke`: PASS (6/6 regression smoke tests).
+- Concurrent `./tests/run_smoke_tests.sh` and `./tests/run_tests.sh`: PASS
+  (both processes exit 0; package and isolated-runtime checks remain clean).
+- `bash -n bin/novim-dev bin/novim-dev-package tests/run_tests.sh
+  tests/run_smoke_tests.sh tests/run_package_tests.sh`: PASS.
+- `python3 -m json.tool docs/project.json`: PASS.
+- `./bin/novim-dev --version`: PASS (`0.1.7-dev`, Neovim `v0.12.5`).
+- `/Users/mert/.local/bin/novim --version`: PASS (`0.1.7`, unchanged).
+- `git diff --check`: PASS.
+
+Acceptance evidence: all six TASK-006 acceptance criteria pass through the
+package manifest/install assertions, local runbooks and fixture workflow,
+existing read-only/runtime/version checks, and offline full test runner.
+
+Residual risks / known gaps: local package and fixture evidence only; no
+upstream fetch, hosted release, production deployment, recovery exercise, or
+customer-acceptance claim was made. The optional `novim-dev` convenience link
+remains an explicit user action.

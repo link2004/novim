@@ -138,8 +138,15 @@ if [[ -d "$RUN_TEMP_ROOT" ]]; then
 fi
 echo "  ✓ PASS: Zero fixture residue left in run temporary root ($RUN_TEMP_ROOT)"
 
-# Verify product source directories were not modified by test execution
-PRODUCT_MODS="$(git -C "$PROJECT_ROOT" status --porcelain=v1 -- bin/ config/)"
+# Verify tracked product source files were not modified by test execution.
+# A task branch may legitimately contain a new launcher under bin/; compare
+# tracked content here while the package runner compares the full checkout
+# status before and after its run.
+PRODUCT_MODS="$(git -C "$PROJECT_ROOT" diff --name-only HEAD -- bin/ config/ | while IFS= read -r path; do
+  if git -C "$PROJECT_ROOT" cat-file -e "HEAD:$path" 2>/dev/null; then
+    printf '%s\n' "$path"
+  fi
+done)"
 if [[ -n "$PRODUCT_MODS" ]]; then
   echo "Error: Product code in bin/ or config/ was unexpectedly modified:" >&2
   echo "$PRODUCT_MODS" >&2

@@ -12,7 +12,7 @@ Statuses: `PROPOSED`, `PLANNED`, `IN_PROGRESS`, `READY_FOR_REVIEW`,
 | 3 | TASK-003 | Browse project files with dot-folders hidden by default and a persistent settings toggle | ACCEPTED | TASK-002 (accepted) |
 | 4 | TASK-004 | Open source files and move between file tree, changed files, and diff context | ACCEPTED | TASK-002, TASK-003 (accepted) |
 | 5 | TASK-005 | Add local regression smoke tests for launcher, workbench layout, settings, and diff rendering | ACCEPTED | TASK-002 through TASK-004 (accepted) |
-| 6 | TASK-006 | Package the local derivative and document a safe upstream sync procedure | PLANNED | TASK-005 (accepted) |
+| 6 | TASK-006 | Package the local derivative and document a safe upstream sync procedure | READY_FOR_REVIEW | TASK-005 (accepted) |
 
 ## Task notes
 

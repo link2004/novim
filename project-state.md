@@ -4,14 +4,14 @@ Updated: 2026-08-29
 Repository: `novim-custom`
 Lifecycle: `ACTIVE_DEVELOPMENT`
 Delivery policy: `LIGHTWEIGHT`
-Current task: `TASK-005`
+Current task: `TASK-006`
 Base branch: `main`
 Task branch: `task/TASK-006-package-upstream-sync`
 Pull request: `NOT_OPEN`
 Remote checks: `OPTIONAL / NOT_RUN`
 Last accepted task: `TASK-005`
 Last accepted commit: `cd938e2ce0ef9e792b2979cd325e614a65d42590`
-Last merged pull request: `https://github.com/medonmez/novim-custom/pull/6`
+Last merged pull request: `https://github.com/medonmez/novim-custom/pull/7`
 
 ## Current truth
 
@@ -47,6 +47,8 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/6`
   `origin/main`. The local smoke layer covers normal launcher startup, exact
   isolated paths, external and symlink invocation, workbench/settings/Git
   invariants, concurrent runs, and cross-platform fixture cleanup.
+- Reconciliation PR #7 was merged at `bcdd81ce9e9d0a3badc21d220f98d31600167059`
+  on `origin/main`; TASK-006 uses that verified branch tip as its baseline.
 - `TASK-002` candidate `54ad217047eb07b75b08697129cde3c905418443`
   received local verdict `APPROVED`, was delivered through GitHub PR #2, and
   is present in merge commit `794a7c6fe09abb335fb7c14273614a796b365631` on
@@ -56,13 +58,13 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/6`
 
 ## Active blockers
 
-- No active blocker. TASK-006 is planned on the isolated branch
-  `task/TASK-006-package-upstream-sync` from the verified TASK-005 merge
-  commit. No hosted, production, recovery, or customer-acceptance claim is
-  made.
+- No active blocker. TASK-006 is ready for local review on the isolated branch
+  `task/TASK-006-package-upstream-sync` from the verified `origin/main` tip
+  `bcdd81ce9e9d0a3badc21d220f98d31600167059`. No hosted, production,
+  recovery, or customer-acceptance claim is made.
 
 ## Next orchestration action
 
-Implement TASK-006 on `task/TASK-006-package-upstream-sync`, preserving the
-accepted launcher, isolated-runtime, read-only workbench, and local smoke-test
-contracts.
+Review the TASK-006 handoff on `task/TASK-006-package-upstream-sync`, including
+the real package manifest, temporary install, offline fixture workflow, and
+full local validation before deciding lightweight delivery.
