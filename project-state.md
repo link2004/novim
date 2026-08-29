@@ -4,14 +4,14 @@ Updated: 2026-08-29
 Repository: `novim-custom`
 Lifecycle: `ACTIVE_DEVELOPMENT`
 Delivery policy: `LIGHTWEIGHT`
-Current task: `TASK-004`
+Current task: `TASK-005`
 Base branch: `main`
-Task branch: `task/TASK-004-source-navigation`
+Task branch: `task/TASK-005-regression-smoke-tests`
 Pull request: `NOT_OPEN`
 Remote checks: `OPTIONAL / NOT_RUN`
-Last accepted task: `TASK-003`
-Last accepted commit: `6a9be23522c43110dd4c4053f67ab22c8586d4b9`
-Last merged pull request: `https://github.com/medonmez/novim-custom/pull/3`
+Last accepted task: `TASK-004`
+Last accepted commit: `cdb9140947f0fe4beb9a4748e599e8f769fb6aec`
+Last merged pull request: `https://github.com/medonmez/novim-custom/pull/4`
 
 ## Current truth
 
@@ -35,6 +35,12 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/3`
   `origin/main`. The project browser hides dot-prefixed entries by default,
   persists the visibility setting under isolated state, filters directory
   previews consistently, and surfaces settings-write failures.
+- `TASK-004` was locally reviewed `APPROVED`, delivered through GitHub PR #4,
+  and verified in merge commit `cdb9140947f0fe4beb9a4748e599e8f769fb6aec` on
+  `origin/main`. The workbench opens regular project files in the right editor
+  pane, preserves read-only directory and Git inspection, supports bidirectional
+  Files/Git Diff navigation, and retains unsaved source buffers during preview
+  navigation.
 - `TASK-002` candidate `54ad217047eb07b75b08697129cde3c905418443`
   received local verdict `APPROVED`, was delivered through GitHub PR #2, and
   is present in merge commit `794a7c6fe09abb335fb7c14273614a796b365631` on
@@ -44,10 +50,11 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/3`
 
 ## Active blockers
 
-- No active blocker. TASK-004 is planned on the new isolated branch
-  `task/TASK-004-source-navigation` from the verified TASK-003 merge baseline.
+- No active blocker. TASK-005 is planned on the isolated branch
+  `task/TASK-005-regression-smoke-tests` from the verified TASK-004 merge
+  baseline.
 
 ## Next orchestration action
 
-Implement TASK-004 on `task/TASK-004-source-navigation`, preserving the
-accepted TASK-002 and TASK-003 read-only, isolated-runtime contracts.
+Implement TASK-005 on `task/TASK-005-regression-smoke-tests`, preserving the
+accepted TASK-002 through TASK-004 read-only and isolated-runtime contracts.
