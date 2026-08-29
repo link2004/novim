@@ -9,7 +9,7 @@
   "repository": {
     "localPath": "/Users/mert/novim-custom",
     "baseBranch": "main",
-    "taskBranch": "task/TASK-003-project-browser-settings",
+        "taskBranch": "task/TASK-004-source-navigation",
     "upstreamUrl": "https://github.com/link2004/novim.git",
     "currentRemoteName": "origin",
     "originUrl": "https://github.com/medonmez/novim-custom.git",
@@ -26,13 +26,13 @@
     "developmentCommandTask": "TASK-001"
   },
   "workflow": {
-    "currentTask": "TASK-003",
-    "currentTaskStatus": "CHANGES_REQUESTED",
+        "currentTask": "TASK-004",
+        "currentTaskStatus": "PLANNED",
     "pullRequest": null,
     "remoteChecks": "OPTIONAL / NOT_RUN",
-    "lastAcceptedTask": "TASK-002",
-    "lastAcceptedCommit": "794a7c6fe09abb335fb7c14273614a796b365631",
-    "lastMergedPullRequest": "https://github.com/medonmez/novim-custom/pull/2"
+        "lastAcceptedTask": "TASK-003",
+        "lastAcceptedCommit": "6a9be23522c43110dd4c4053f67ab22c8586d4b9",
+        "lastMergedPullRequest": "https://github.com/medonmez/novim-custom/pull/3"
   },
   "canonicalDocs": {
     "repository": "docs/repository.md",

@@ -766,6 +766,344 @@ function tests.test_project_browser_read_only_invariance()
 end
 
 -- =========================================================================
+-- TASK-004 New Feature Tests (Source Navigation, View Switching, & Editing)
+-- =========================================================================
+
+function tests.test_open_regular_file_in_editor()
+  local workbench = require("novim.workbench")
+  workbench.close()
+
+  local fixture = create_project_browser_fixture()
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  workbench.open({ view = "files" })
+  local st = workbench.get_state()
+  assert_true(st.is_open, "workbench must be open")
+  assert_eq(st.view_mode, "files", "view mode must be files")
+
+  -- Find a regular file entry in project_files
+  local target_entry = nil
+  local target_idx = nil
+  for idx, entry in ipairs(st.project_files) do
+    if not entry.is_dir and entry.name == "README.md" then
+      target_entry = entry
+      target_idx = idx
+      break
+    end
+  end
+  assert_true(target_entry ~= nil, "fixture must contain README.md")
+
+  -- Select and open the regular file
+  workbench.select_file(target_idx)
+  local open_ok = workbench.open_file(target_entry)
+  assert_true(open_ok, "opening a regular file must succeed")
+
+  -- Verify right window state
+  local current_win = vim.api.nvim_get_current_win()
+  assert_eq(current_win, st.win_right, "opening file must focus the right window")
+
+  local edit_buf = vim.api.nvim_win_get_buf(st.win_right)
+  local buf_name = vim.api.nvim_buf_get_name(edit_buf)
+  assert_true(buf_name:find("README.md") ~= nil, "right window buffer must be README.md")
+  assert_eq(vim.bo[edit_buf].buftype, "", "editing buffer must be a regular buffer (buftype='')")
+  assert_eq(vim.bo[edit_buf].readonly, false, "editing buffer must not be readonly")
+  assert_eq(vim.bo[edit_buf].modifiable, true, "editing buffer must be modifiable")
+
+  -- Verify left window remains intact
+  assert_true(vim.api.nvim_win_is_valid(st.win_left), "left window must remain valid")
+  local left_buf = vim.api.nvim_win_get_buf(st.win_left)
+  assert_eq(left_buf, st.buf_left, "left window must retain navigation buffer")
+
+  -- Verify editing capability: modify lines and verify
+  vim.api.nvim_buf_set_lines(edit_buf, 0, -1, false, { "# Modified README", "New content line" })
+  local modified_lines = vim.api.nvim_buf_get_lines(edit_buf, 0, -1, false)
+  assert_eq(modified_lines[1], "# Modified README", "buffer lines must be editable")
+  assert_eq(vim.bo[edit_buf].modified, true, "buffer must be marked modified after edits")
+
+  workbench.close()
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+end
+
+function tests.test_directory_selection_preserves_inspection_no_file_open()
+  local workbench = require("novim.workbench")
+  workbench.close()
+
+  local fixture = create_project_browser_fixture()
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  workbench.open({ view = "files" })
+  local st = workbench.get_state()
+
+  -- Find a directory entry
+  local dir_entry = nil
+  local dir_idx = nil
+  for idx, entry in ipairs(st.project_files) do
+    if entry.is_dir and entry.name == "src" then
+      dir_entry = entry
+      dir_idx = idx
+      break
+    end
+  end
+  assert_true(dir_entry ~= nil, "fixture must contain src directory")
+
+  -- Attempt to open directory
+  workbench.select_file(dir_idx)
+  local open_result = workbench.open_file(dir_entry)
+  assert_eq(open_result, false, "open_file on a directory must return false")
+
+  -- Verify right pane remains in read-only preview mode
+  local current_buf = vim.api.nvim_win_get_buf(st.win_right)
+  assert_eq(current_buf, st.buf_right, "right window buffer must remain preview buffer (buf_right)")
+  assert_eq(vim.bo[st.buf_right].buftype, "nofile", "preview buffer buftype must remain 'nofile'")
+  assert_eq(vim.bo[st.buf_right].readonly, true, "preview buffer must remain readonly")
+  assert_eq(vim.bo[st.buf_right].modifiable, false, "preview buffer must remain not modifiable")
+
+  -- Verify right pane content shows directory inspection
+  local preview_lines = vim.api.nvim_buf_get_lines(st.buf_right, 0, -1, false)
+  local preview_text = table.concat(preview_lines, "\n")
+  assert_true(preview_text:find("Directory: src") ~= nil, "preview must contain Directory: src")
+  assert_true(preview_text:find("Contents:") ~= nil, "preview must contain Contents list")
+  assert_true(preview_text:find("Direct Items:") ~= nil, "preview must contain Direct Items count")
+
+  workbench.close()
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+end
+
+function tests.test_view_switching_and_active_tab_rendering()
+  local workbench = require("novim.workbench")
+  workbench.close()
+
+  local fixture = create_fixture_repo()
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  -- 1. Open in files view
+  workbench.open({ view = "files" })
+  local st1 = workbench.get_state()
+  assert_eq(st1.view_mode, "files", "initial view mode must be files")
+
+  local header_files = vim.api.nvim_buf_get_lines(st1.buf_left, 1, 2, false)
+  assert_true(header_files[1]:find("▶ %[1: Files%]") ~= nil, "header tab 1 must show active indicator in files view")
+
+  -- 2. Switch to diff view
+  workbench.set_view("diff")
+  local st2 = workbench.get_state()
+  assert_eq(st2.view_mode, "diff", "view mode must be diff after set_view('diff')")
+
+  local header_diff = vim.api.nvim_buf_get_lines(st2.buf_left, 1, 2, false)
+  assert_true(header_diff[1]:find("▶ %[2: Git Diff%]") ~= nil, "header tab 2 must show active indicator in diff view")
+
+  -- 3. Verify toggle_view switches back to files
+  workbench.toggle_view()
+  local st3 = workbench.get_state()
+  assert_eq(st3.view_mode, "files", "view mode must be files after toggle_view()")
+
+  -- 4. Verify toggle_view switches to diff
+  workbench.toggle_view()
+  local st4 = workbench.get_state()
+  assert_eq(st4.view_mode, "diff", "view mode must be diff after toggle_view()")
+
+  workbench.close()
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+end
+
+function tests.test_changed_file_diff_rendering_and_return_to_files()
+  local workbench = require("novim.workbench")
+  local settings = require("novim.settings")
+  workbench.close()
+
+  local fixture = create_fixture_repo()
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  -- Start in files view with custom dotfile setting
+  settings.set("show_dotfiles", false)
+  workbench.open({ view = "files" })
+  local initial_root = workbench.get_state().root_dir
+  assert_true(vim.fs.normalize(initial_root) == vim.fs.normalize(fixture) or initial_root:find(vim.fs.basename(fixture), 1, true) ~= nil, "root_dir must match fixture path")
+
+  -- Switch to Git Diff view
+  workbench.set_view("diff")
+  local st_diff = workbench.get_state()
+  assert_true(st_diff.git_file_count >= 3, "must have loaded changed git files")
+
+  -- Select a modified file
+  workbench.select_file(1)
+  local diff_lines = vim.api.nvim_buf_get_lines(st_diff.buf_right, 0, -1, false)
+  local diff_text = table.concat(diff_lines, "\n")
+  assert_true(diff_text:find("diff %-%-git") ~= nil, "right pane must render unified diff against HEAD")
+
+  -- Return to Files view
+  workbench.set_view("files")
+  local st_returned = workbench.get_state()
+  assert_eq(st_returned.view_mode, "files", "view mode must be files")
+  assert_eq(st_returned.root_dir, initial_root, "root directory must be preserved")
+  assert_eq(settings.get("show_dotfiles"), false, "show_dotfiles setting must be preserved")
+  assert_true(st_returned.project_file_count > 0, "project file list must remain intact")
+
+  workbench.close()
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+end
+
+function tests.test_unsaved_buffer_preservation_on_navigation()
+  local workbench = require("novim.workbench")
+  workbench.close()
+
+  local fixture = create_project_browser_fixture()
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  workbench.open({ view = "files" })
+  local st = workbench.get_state()
+
+  -- Find and open a file
+  local entry1 = nil
+  for _, entry in ipairs(st.project_files) do
+    if not entry.is_dir and entry.name == "README.md" then
+      entry1 = entry
+      break
+    end
+  end
+  assert_true(entry1 ~= nil, "fixture must contain README.md")
+
+  workbench.open_file(entry1)
+  local edit_buf = vim.api.nvim_win_get_buf(st.win_right)
+
+  -- Add unsaved changes to the buffer
+  vim.api.nvim_buf_set_lines(edit_buf, 0, 0, false, { "UNSAVED EDITED LINE 12345" })
+  assert_eq(vim.bo[edit_buf].modified, true, "buffer must have unsaved edits")
+
+  -- Switch back to left pane and navigate/preview other items
+  vim.api.nvim_set_current_win(st.win_left)
+  workbench.select_file(1) -- Preview item 1 in right pane
+  assert_eq(vim.api.nvim_win_get_buf(st.win_right), st.buf_right, "right window should switch to preview buffer")
+
+  -- Switch views
+  workbench.set_view("diff")
+  workbench.set_view("files")
+
+  -- Re-open README.md
+  workbench.open_file(entry1)
+  local re_opened_buf = vim.api.nvim_win_get_buf(st.win_right)
+  assert_eq(re_opened_buf, edit_buf, "re-opened buffer must be the exact same in-memory buffer")
+  local lines = vim.api.nvim_buf_get_lines(re_opened_buf, 0, 1, false)
+  assert_eq(lines[1], "UNSAVED EDITED LINE 12345", "unsaved modifications must be completely preserved")
+
+  workbench.close()
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+end
+
+function tests.test_keyboard_and_mouse_shortcuts()
+  local workbench = require("novim.workbench")
+  workbench.close()
+
+  local fixture = create_project_browser_fixture()
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  workbench.open({ view = "files" })
+  local st = workbench.get_state()
+
+  -- Test Tab switching to right window
+  vim.api.nvim_set_current_win(st.win_left)
+  local tab_map = vim.fn.maparg("<Tab>", "n", false, true)
+  assert_true(tab_map ~= nil and tab_map.callback ~= nil, "<Tab> keymap must exist on left buffer")
+  tab_map.callback()
+  assert_eq(vim.api.nvim_get_current_win(), st.win_right, "<Tab> must switch focus to right window")
+
+  -- Test Tab switching back to left window
+  local right_tab_map = vim.fn.maparg("<Tab>", "n", false, true)
+  assert_true(right_tab_map ~= nil and right_tab_map.callback ~= nil, "<Tab> keymap must exist on right buffer")
+  right_tab_map.callback()
+  assert_eq(vim.api.nvim_get_current_win(), st.win_left, "<Tab> must switch focus back to left window")
+
+  -- Test Enter on left pane opens regular file
+  local file_idx = nil
+  for idx, entry in ipairs(st.project_files) do
+    if not entry.is_dir and entry.name == "README.md" then
+      file_idx = idx
+      break
+    end
+  end
+  assert_true(file_idx ~= nil, "README.md must exist in fixture")
+
+  local target_line = st.header_line_count + file_idx
+  vim.api.nvim_win_set_cursor(st.win_left, { target_line, 1 })
+  local cr_map = vim.fn.maparg("<CR>", "n", false, true)
+  assert_true(cr_map ~= nil and cr_map.callback ~= nil, "<CR> keymap must exist on left buffer")
+  cr_map.callback()
+
+  assert_eq(vim.api.nvim_get_current_win(), st.win_right, "<CR> on regular file must focus right window")
+  local edit_buf = vim.api.nvim_win_get_buf(st.win_right)
+  assert_true(vim.api.nvim_buf_get_name(edit_buf):find("README.md") ~= nil, "editing buffer must be README.md")
+
+  workbench.close()
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+end
+
+function tests.test_task004_source_navigation_git_invariance()
+  local workbench = require("novim.workbench")
+  workbench.close()
+
+  local fixture = create_fixture_repo()
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  -- Capture baseline git status and diff
+  local before_status = vim.system({ "git", "-C", fixture, "status", "--porcelain=v1", "-z", "-uall" }, { text = true }):wait().stdout
+  local before_diff = vim.system({ "git", "-C", fixture, "diff", "HEAD" }, { text = true }):wait().stdout
+
+  -- Perform full navigation cycle: open files, open dirs, switch views
+  workbench.open({ view = "files" })
+  local st = workbench.get_state()
+
+  -- Open a regular file
+  for _, entry in ipairs(st.project_files) do
+    if not entry.is_dir and entry.name == "main.lua" then
+      workbench.open_file(entry)
+      break
+    end
+  end
+
+  -- Attempt to open directory
+  for _, entry in ipairs(st.project_files) do
+    if entry.is_dir then
+      workbench.open_file(entry)
+      break
+    end
+  end
+
+  -- Switch views and navigate diff items
+  workbench.set_view("diff")
+  workbench.select_file(1)
+  workbench.select_file(2)
+
+  -- Return to files view
+  workbench.set_view("files")
+  workbench.select_file(1)
+
+  workbench.close()
+
+  -- Capture after-navigation git status and diff
+  local after_status = vim.system({ "git", "-C", fixture, "status", "--porcelain=v1", "-z", "-uall" }, { text = true }):wait().stdout
+  local after_diff = vim.system({ "git", "-C", fixture, "diff", "HEAD" }, { text = true }):wait().stdout
+
+  assert_eq(after_status, before_status, "Git status must remain 100% byte-for-byte identical after navigation")
+  assert_eq(after_diff, before_diff, "Git diff must remain 100% byte-for-byte identical after navigation")
+
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+end
+
+-- =========================================================================
 -- Run all tests
 -- =========================================================================
 
