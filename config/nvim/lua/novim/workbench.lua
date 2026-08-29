@@ -659,17 +659,6 @@ function M.open()
       end
     end, opts)
 
-    -- Mouse click
-    vim.keymap.set("n", "<LeftMouse>", function()
-      vim.cmd("normal! <LeftMouse>")
-      on_left_click()
-    end, opts)
-
-    vim.keymap.set("n", "<2-LeftMouse>", function()
-      vim.cmd("normal! <2-LeftMouse>")
-      on_left_click()
-    end, opts)
-
     -- Pane switching
     vim.keymap.set("n", "<Tab>", function()
       if state.win_right and vim.api.nvim_win_is_valid(state.win_right) then
@@ -741,6 +730,7 @@ function M.get_state()
     files = state.files,
     stats = state.stats,
     selected_index = state.selected_index,
+    header_line_count = state.header_line_count,
     win_left = state.win_left,
     win_right = state.win_right,
     buf_left = state.buf_left,

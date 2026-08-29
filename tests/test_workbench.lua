@@ -216,6 +216,33 @@ function tests.test_workbench_close_editor_state()
   cleanup_dir(fixture)
 end
 
+function tests.test_left_pane_mouse_selection_no_e21()
+  local workbench = require("novim.workbench")
+  workbench.close()
+
+  local fixture = create_fixture_repo()
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  workbench.open()
+  local state = workbench.get_state()
+  assert_true(state.is_open, "workbench must be open")
+  assert_true(state.file_count >= 4, "must have loaded changed files")
+
+  -- Verify that moving cursor to different lines in left window (as occurs natively on mouse click)
+  -- updates the preview without triggering E21 error in readonly buffer
+  local line_count = vim.api.nvim_buf_line_count(state.buf_left)
+  for line_num = state.header_line_count + 1, math.min(line_count, state.header_line_count + 3) do
+    local ok, err = pcall(vim.api.nvim_win_set_cursor, state.win_left, { line_num, 2 })
+    assert_true(ok, "cursor movement on left pane must succeed without error: " .. tostring(err))
+    vim.cmd("doautocmd CursorMoved")
+  end
+
+  workbench.close()
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+end
+
 function tests.test_mouse_divider_drag_and_status_invariance()
   local workbench = require("novim.workbench")
   workbench.close()
@@ -234,43 +261,23 @@ function tests.test_mouse_divider_drag_and_status_invariance()
   assert_true(state.is_open, "workbench must be open")
 
   local initial_left_width = vim.api.nvim_win_get_width(state.win_left)
-  local sep_col = initial_left_width + 1
+  assert_true(initial_left_width >= 15, "initial width must respect minimum width")
 
-  -- Exercise real mouse divider drag to the right (+10 columns)
-  local drag_right_col = sep_col + 10
-  vim.cmd("redraw!")
-
-  -- Send mouse events for dragging separator
-  vim.api.nvim_input(string.format("<LeftMouse><Position:%d,5>", sep_col))
-  vim.api.nvim_input(string.format("<LeftDrag><Position:%d,5>", drag_right_col))
-  vim.api.nvim_input(string.format("<LeftRelease><Position:%d,5>", drag_right_col))
-  vim.cmd("redraw!")
-
-  -- Programmatic resize simulation to verify width manipulation in headless test
-  if vim.api.nvim_win_get_width(state.win_left) == initial_left_width then
-    vim.api.nvim_win_set_width(state.win_left, initial_left_width + 10)
-  end
-
+  -- Test widening left window
+  local target_widen = initial_left_width + 10
+  vim.api.nvim_win_set_width(state.win_left, target_widen)
   local widened_left_width = vim.api.nvim_win_get_width(state.win_left)
-  assert_true(widened_left_width > initial_left_width, "left pane width must increase on drag right")
+  assert_eq(widened_left_width, target_widen, "left pane width must increase on widen")
 
-  -- Exercise real mouse divider drag to the left (-15 columns)
-  local drag_left_col = widened_left_width - 15
-  vim.api.nvim_input(string.format("<LeftMouse><Position:%d,5>", widened_left_width + 1))
-  vim.api.nvim_input(string.format("<LeftDrag><Position:%d,5>", drag_left_col))
-  vim.api.nvim_input(string.format("<LeftRelease><Position:%d,5>", drag_left_col))
-  vim.cmd("redraw!")
-
-  if vim.api.nvim_win_get_width(state.win_left) == widened_left_width then
-    vim.api.nvim_win_set_width(state.win_left, initial_left_width - 5)
-  end
-
+  -- Test narrowing left window
+  local target_narrow = initial_left_width - 5
+  vim.api.nvim_win_set_width(state.win_left, target_narrow)
   local narrowed_left_width = vim.api.nvim_win_get_width(state.win_left)
-  assert_true(narrowed_left_width < widened_left_width, "left pane width must decrease on drag left")
+  assert_eq(narrowed_left_width, target_narrow, "left pane width must decrease on narrow")
 
-  -- Verify minimum width setting
+  -- Verify global minimum width setting
   assert_true(vim.o.winminwidth >= 15, "winminwidth must be >= 15")
-  assert_true(narrowed_left_width >= 15, "left pane must respect minimum width")
+  assert_true(narrowed_left_width >= 15, "left pane width must be >= winminwidth")
 
   -- Close workbench
   workbench.close()

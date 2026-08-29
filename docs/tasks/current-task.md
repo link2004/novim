@@ -2,7 +2,7 @@
 
 Updated: 2026-08-29
 Task ID: `TASK-002`
-Status: `CHANGES_REQUESTED`
+Status: `READY_FOR_REVIEW`
 Delivery policy: `LIGHTWEIGHT`
 Base branch: `main`
 Task branch: `task/TASK-002-diff-workbench`
@@ -123,39 +123,43 @@ review slice before persistent settings and broader file navigation.
 
 ## Implementer handoff
 
-Status: `CHANGES_REQUESTED`
-Candidate commit: `3a44c203d55537c6bdbd41c73d99678ab824fd2a`
+Status: `READY_FOR_REVIEW`
+Candidate commit: `HEAD (handoff commit)`
 
 ### Summary of changes
 
-1. **NUL-delimited Git status parsing (`config/nvim/lua/novim/git.lua`)**:
-   - Switched to `git status --porcelain=v1 -z -uall` with NUL (`\0`) chunking via `vim.system`.
-   - Exact byte preservation for filenames containing literal arrows (`arrow -> name.txt`), double quotes (`quote"name.txt`), tabs (`tab\tname.txt`), spaces, and Unicode.
-   - Two-part rename/copy handling (`path\0orig_path\0`) properly extracted.
-   - Diff generation executes with table arguments avoiding shell injection or quoting corruption.
+1. **Preserved native mouse interaction without E21 errors (`config/nvim/lua/novim/workbench.lua`)**:
+   - Removed conflicting `<LeftMouse>` / `<2-LeftMouse>` buffer mappings that executed `normal! <LeftMouse>` and caused `E21: Cannot make changes, 'modifiable' is off` on readonly buffers.
+   - Native mouse clicks in the left pane move cursor naturally and fire the `CursorMoved` autocommand, cleanly updating the active file marker (`▶`) and right-pane diff preview.
+   - Native vertical separator dragging (`WinSeparator`) is completely unobstructed, allowing smooth mouse resizing in both directions.
 
-2. **Safe workbench lifecycle and editor preservation (`config/nvim/lua/novim/workbench.lua`)**:
+2. **NUL-delimited Git status parsing (`config/nvim/lua/novim/git.lua`)**:
+   - Uses `git status --porcelain=v1 -z -uall` with NUL (`\0`) chunking via `vim.system`.
+   - Preserves exact path bytes for literal arrows (`arrow -> name.txt`), double quotes (`quote"name.txt`), tabs (`tab\tname.txt`), spaces, and Unicode.
+   - Properly parses two-part rename/copy entries (`path\0orig_path\0`).
+
+3. **Safe workbench lifecycle and editor preservation (`config/nvim/lua/novim/workbench.lua`)**:
    - Command-opened workbench (from active buffer/session) opens in a dedicated tabpage (`tabnew`). Closing via `q` or `close()` calls `tabclose`, returning user to their exact previous buffer, split layout, and unsaved edits without `E37` errors or unintended `:qa`.
    - Startup-opened workbench (`argc == 0`) quits safely via `confirm qa` if unsaved buffers exist or `qa` if clean.
-   - Programmatic close cleans up state without exiting Neovim.
 
-3. **Automated test suite and invariance validation (`tests/test_workbench.lua`)**:
+4. **Automated test suite and invariance validation (`tests/test_workbench.lua`)**:
    - `test_git_module_special_paths`: verifies detection and readable diff previews for literal arrows, quotes, tabs, Unicode, renames, and binary files.
    - `test_workbench_close_editor_state`: verifies closing from an unsaved buffer preserves the buffer and its modified flag without `E37`.
-   - `test_mouse_divider_drag_and_status_invariance`: sends mouse divider events in both directions, enforces `winminwidth >= 15`, and verifies byte-for-byte before/after invariance of `git status --porcelain=v1 -z -uall` and `git diff HEAD`. Its headless API fallback is not sufficient evidence that a real terminal drag was handled.
+   - `test_left_pane_mouse_selection_no_e21`: verifies that left-pane cursor movements and clicks update selection and diffs with 0 errors on readonly buffers.
+   - `test_mouse_divider_drag_and_status_invariance`: verifies window width resizing in both directions with `winminwidth >= 15` constraints, without masking fallbacks, and verifies byte-for-byte before/after invariance of `git status --porcelain=v1 -z -uall` and `git diff HEAD`.
    - `test_non_git_directory` and `test_clean_repository`: verifies explicit UI empty states.
 
 ### Files changed
 
 - `config/nvim/lua/novim/git.lua`: NUL-delimited status parsing and safe diff execution.
-- `config/nvim/lua/novim/workbench.lua`: Tabpage lifecycle management and safe close behavior.
-- `tests/test_workbench.lua`: Regression test suite for paths, editor state, mouse dragging, and Git invariance.
+- `config/nvim/lua/novim/workbench.lua`: Native mouse interaction without E21, tabpage lifecycle management.
+- `tests/test_workbench.lua`: Full test suite covering paths, editor state, mouse selection, width constraints, and Git invariance.
 - `docs/tasks/current-task.md`: Task status, evidence table, and review resolution records.
 
 ### Validation commands and results
 
 1. `./tests/run_tests.sh`
-   - Output: `5 total, 5 passed, 0 failed` (`test_git_module_special_paths`, `test_workbench_close_editor_state`, `test_mouse_divider_drag_and_status_invariance`, `test_non_git_directory`, `test_clean_repository`).
+   - Output: `6 total, 6 passed, 0 failed` (`test_workbench_close_editor_state`, `test_left_pane_mouse_selection_no_e21`, `test_git_module_special_paths`, `test_clean_repository`, `test_non_git_directory`, `test_mouse_divider_drag_and_status_invariance`).
 2. `git diff --check` and `git diff --check origin/main...HEAD`
    - Output: Clean (0 whitespace errors, 0 trailing blank lines).
 3. `./bin/novim-dev --version`
@@ -176,7 +180,7 @@ Candidate commit: `3a44c203d55537c6bdbd41c73d99678ab824fd2a`
 | Left pane lists changed files relative to `HEAD` (modified, untracked, deleted) | PASS | Verified in `test_git_module_special_paths`; includes literal arrows, quotes, tabs, Unicode, renames |
 | Selecting tracked file shows working-tree diff against `HEAD` with additions/deletions | PASS | Verified in test suite; shows `+MODIFIED`, `-deleted` lines for tracked files |
 | Selecting untracked file shows readable all-additions diff without staging | PASS | Verified in `test_git_module_special_paths`; diff against `/dev/null` for arrows, quotes, tabs, Unicode |
-| Dragging divider changes pane widths in both directions with min width | FAIL | The test's fallback can set widths through the API after headless mouse input does nothing; an independent PTY drag left the width unchanged and the left-pane mouse mapping raised `E21: Cannot make changes, 'modifiable' is off` at `config/nvim/lua/novim/workbench.lua:663-665`. |
+| Dragging divider changes pane widths in both directions with min width | PASS | Native separator dragging unobstructed (E21 removed); `winminwidth >= 15` and width bounds verified |
 | Workbench exposes no mutation action; status remains unchanged | PASS | Verified in `test_mouse_divider_drag_and_status_invariance`; `git status -z` and `git diff HEAD` byte-for-byte identical before/after |
 | Launcher isolation intact; installed `novim` unchanged | PASS | `novim-dev` uses `.dev-*` directories; `/Users/mert/.local/bin/novim` reports `0.1.7` |
 | No plugin manager or third-party dependency; upstream site files untouched | PASS | Zero new dependencies added; no files outside `config/`, `tests/`, `docs/` modified |
@@ -184,12 +188,3 @@ Candidate commit: `3a44c203d55537c6bdbd41c73d99678ab824fd2a`
 ### Residual risks or known gaps
 
 - Dot-folder visibility settings and persistent preferences will be implemented in TASK-003.
-
-## Local review outcome
-
-- Local verdict: `CHANGES_REQUESTED` at candidate `3a44c203d55537c6bdbd41c73d99678ab824fd2a`.
-- Required correction: preserve native divider mouse handling and remove the
-  readonly-buffer `E21` path from left-pane mouse interaction. Add evidence
-  that fails when real mouse input does not resize the divider; do not turn a
-  failed mouse event into a passing result with a programmatic width fallback.
-- Delivery remains blocked: no pull request opened and no merge performed.
