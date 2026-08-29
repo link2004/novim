@@ -1,65 +1,93 @@
 # Latest Review
 
 Updated: 2026-08-29
-Task ID: `TASK-002`
-Local verdict: `APPROVED`
+Task ID: `TASK-003`
+Local verdict: `CHANGES_REQUESTED`
 Delivery policy: `LIGHTWEIGHT`
-Baseline: `12327b78049e1348df858b589baf669ba451c090` (`origin/main`)
-Candidate: `54ad217047eb07b75b08697129cde3c905418443`
-Task branch: `task/TASK-002-diff-workbench`
-Pull request: `https://github.com/medonmez/novim-custom/pull/2`
+Baseline: `794a7c6fe09abb335fb7c14273614a796b365631` (`origin/main`)
+Candidate: `c1fffc1`
+Task branch: `task/TASK-003-project-browser-settings`
+Pull request: `NOT_OPEN`
 Remote checks: `OPTIONAL / NOT_RUN`
-Merge status: `MERGED`
-Merge commit: `794a7c6fe09abb335fb7c14273614a796b365631`
-Target branch contains change: `YES` (`origin/main`)
+Merge status: `NOT_DELIVERED`
+Target branch contains change: `NO`
 
 ## Review result
 
-The prior mouse-interaction finding is resolved. The conflicting readonly
-buffer mouse mappings were removed, and native Neovim mouse handling now works
-for both the left-pane selection and the vertical separator.
+The core project tree, settings modal, persistent state path, and preserved
+read-only diff workbench are present. The task remains active because two
+scoped correctness gaps violate the task guardrails and require changes on the
+same branch before delivery.
 
-The repository test suite's divider assertions use direct window-width API
-calls because the suite runs headless; they no longer contain a fallback that
-can mask a failed mouse event. Independent PTY interaction supplied the real
-mouse evidence for this acceptance review.
+## Findings
+
+### High — Directory previews bypass the hidden-dotfile rule
+
+`config/nvim/lua/novim/browser.lua:188-227` renders every immediate child of a
+selected directory without consulting `show_dotfiles`. With the default hidden
+setting, selecting `src/` produces `.secret_module/` in the right-hand preview,
+even though the same nested dot-folder is absent from the project tree. This
+violates the requirement that dot-prefixed entries remain hidden at every
+relevant tree level and leaks hidden names through a visible browser surface.
+
+Required change: apply the same visibility rule to directory-preview children
+and keep the summary/count consistent with the filtered contents. Add a test
+covering hidden and revealed directory previews, including a nested dot-folder.
+
+### Medium — Settings write failures are silently reported as successful toggles
+
+`config/nvim/lua/novim/settings.lua:132-139` ignores the success/error result of
+`M.set()`. In a write failure, `toggle_dotfiles()` returns the requested new
+value even though the persisted value remains unchanged. The settings UI then
+refreshes and invokes its workbench callback without displaying a non-fatal
+error (`config/nvim/lua/novim/settings_ui.lua:93-100`). An independent probe
+using a directory at the settings-file path observed `set_ok=false` followed by
+`toggle_return=true loaded_after_toggle=false`.
+
+Required change: propagate the persistence result through the toggle/UI path,
+keep the displayed state aligned with the persisted setting, and show a clear
+non-fatal error in the settings surface when saving fails. Add a regression test
+for the failed-write path.
 
 ## Acceptance evidence
 
 | Criterion | Result | Evidence |
 |---|---|---|
-| Offline fixture launch | PASS | `./tests/run_tests.sh` completed offline under the bundled checkout configuration with 6/6 tests passed. |
-| Changed-file list includes tracked and untracked files | PASS | Special-path regression passes; an independent fixture listed modified, deleted, renamed, staged-added, and untracked entries. |
-| Tracked diff against `HEAD` shows additions/deletions | PASS | Independent fixture selected `tracked.txt` and rendered expected `-base 2`, `+MODIFIED`, and `+added` lines. |
-| Untracked file shows readable all-additions view | PASS | Special-path regression rendered arrow, quote, tab, and Unicode filenames and their content without staging. |
-| Mouse divider resizes both directions and respects minimum widths | PASS | Independent PTY drag measured `26→41`, `41→24`, and `24→15`; no E21 occurred. The automated test separately verifies width bounds and `winminwidth >= 15`. |
-| Left-pane mouse selection is safe and updates the preview | PASS | Independent PTY click on the second changed-file row selected `b.txt` (index 2) and updated the preview without E21. |
-| No Git mutation and exact status/diff invariance | PASS | Test suite compares byte-for-byte before/after `git status --porcelain=v1 -z -uall` and `git diff HEAD`; product Git calls are read-only by source inspection. |
-| Launcher isolation and installed `novim` unchanged | PASS | `./bin/novim-dev --version` reports `0.1.7-dev`; installed `/Users/mert/.local/bin/novim --version` reports `0.1.7`; isolated `.dev-*` paths remain in use. |
-| No new dependency or unrelated upstream site change | PASS | Complete candidate diff adds no plugin/dependency and does not modify upstream site assets. |
+| Fixture launch shows regular project files/directories | PASS | `./tests/run_tests.sh` passed the project-browser fixture checks. |
+| Dot-prefixed entries hidden by default at nested levels | PARTIAL | `browser.get_tree(..., false)` and the left pane filter pass; the directory-preview bypass is a blocking gap. |
+| Reachable, unambiguous settings toggle | PASS | Independent PTY launch showed Project Browser, `s` opened the modal, and the modal displayed OFF/ON state. |
+| Toggle reveals/hides normal and nested dot entries | PASS | Automated toggle test passed for root, nested files, and nested dot-folders. |
+| Fresh-process persistence | PASS | Two separate headless Neovim processes using a temporary isolated XDG state root restored `show_dotfiles=true`. |
+| Missing/malformed settings fallback | PASS | Automated missing, malformed, and invalid-type cases passed without crashing. |
+| TASK-002 diff/mouse/read-only invariance | PASS | Regression suite passed divider, mouse-selection, diff, and byte-invariance checks. |
+| No mutation, network, dependency, or installed-release change | PASS | Candidate source adds no network/mutation path; shell checks, versions, and scoped diff inspection passed. |
 
 ## Validation performed
 
-- `./tests/run_tests.sh`: passed, `6 total, 6 passed, 0 failed`.
+- `./tests/run_tests.sh`: passed, `13 total, 13 passed, 0 failed`.
 - `bash -n bin/novim-dev tests/run_tests.sh`: passed.
-- `git diff --check origin/main...HEAD`: passed.
+- `git diff --check 794a7c6...HEAD`: passed.
 - `./bin/novim-dev --version`: passed, `0.1.7-dev` / Neovim `0.12.5`.
 - `/Users/mert/.local/bin/novim --version`: passed, installed `novim 0.1.7`.
-- Independent PTY mouse validation: native divider drag widened and narrowed
-  the left pane and stopped at width 15; native left-pane click selected the
-  second file and updated its diff; no E21 was emitted.
-- Complete candidate diff and repository status inspected; no untracked
-  product files or unrelated source changes found. `.dev-state/` is ignored
-  runtime state.
+- Independent PTY launch: Project Browser opened by default; `s` opened
+  Settings; `t` toggled ON; `q` closed the modal; and the workbench exited
+  cleanly.
+- Independent fresh-process persistence probe passed with an isolated
+  temporary XDG state root.
+- Independent directory-preview probe reproduced hidden-name leakage for
+  `.secret_module/`.
+- Independent write-failure probe reproduced the false successful toggle.
+- Candidate diff, branch, remotes, and ignored runtime state were inspected;
+  no unrelated source files or untracked product files were found.
 
 ## Delivery decision
 
-`APPROVED` for lightweight PR delivery. PR #2 was merged and the merge commit
-`794a7c6fe09abb335fb7c14273614a796b365631` was verified on `origin/main`. No
-hosted, production, recovery, or customer-acceptance claim is made by this
-local review.
+`CHANGES_REQUESTED`. Do not open or merge a PR for `c1fffc1`. No hosted,
+production, recovery, or customer-acceptance claim is made by this local
+review.
 
 ## Next action
 
-TASK-002 is accepted. TASK-003 is now the sole planned current task on
-`task/TASK-003-project-browser-settings`.
+Return TASK-003 to `$stateless-implementer` on the same branch. Address both
+findings, add the two regression cases, rerun the required validation, and
+produce a new local handoff for review.

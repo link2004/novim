@@ -39,11 +39,12 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/2`
 
 ## Active blockers
 
-- None. TASK-002 delivery is complete and TASK-003 is planned on its isolated
-  branch.
+- TASK-003 local review is `CHANGES_REQUESTED` at candidate `c1fffc1`. The same
+  isolated branch remains active; no PR has been opened and no delivery claim
+  is made.
 
 ## Next orchestration action
 
-Implement the planned TASK-003 slice only on
-`task/TASK-003-project-browser-settings`, then stop at `READY_FOR_REVIEW` with
-its local validation evidence.
+Return TASK-003 to the implementer on
+`task/TASK-003-project-browser-settings`; address the latest review findings,
+rerun validation, and stop at `READY_FOR_REVIEW` for another local review.

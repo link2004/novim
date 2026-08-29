@@ -2,7 +2,7 @@
 
 Updated: 2026-08-29
 Task ID: `TASK-003`
-Status: `READY_FOR_REVIEW`
+Status: `CHANGES_REQUESTED`
 Delivery policy: `LIGHTWEIGHT`
 Base branch: `main`
 Task branch: `task/TASK-003-project-browser-settings`
@@ -125,8 +125,8 @@ list, and diff context remain TASK-004 scope.
 
 ## Implementation handoff
 
-Status: `READY_FOR_REVIEW`
-Candidate commit: `HEAD (handoff commit)`
+Status: `CHANGES_REQUESTED`
+Candidate commit: `c1fffc1` (handoff commit)
 
 ### Summary of changes
 
