@@ -4,14 +4,14 @@ Updated: 2026-08-29
 Repository: `novim-custom`
 Lifecycle: `ACTIVE_DEVELOPMENT`
 Delivery policy: `LIGHTWEIGHT`
-Current task: `TASK-002`
+Current task: `TASK-003`
 Base branch: `main`
-Task branch: `task/TASK-002-diff-workbench`
+Task branch: `task/TASK-003-project-browser-settings`
 Pull request: `NOT_OPEN`
 Remote checks: `OPTIONAL / NOT_RUN`
-Last accepted task: `TASK-001`
-Last accepted commit: `12327b78049e1348df858b589baf669ba451c090`
-Last merged pull request: `https://github.com/medonmez/novim-custom/pull/1`
+Last accepted task: `TASK-002`
+Last accepted commit: `794a7c6fe09abb335fb7c14273614a796b365631`
+Last merged pull request: `https://github.com/medonmez/novim-custom/pull/2`
 
 ## Current truth
 
@@ -31,16 +31,20 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/1`
   mouse-resizable, read-only Git diff workbench with a settings surface for
   dot-folder visibility and no plugin dependency.
 - `TASK-002` candidate `54ad217047eb07b75b08697129cde3c905418443`
-  received local verdict `APPROVED`: native terminal mouse interaction was
-  verified in an independent PTY, including bidirectional divider drag,
-  minimum width behavior, and left-pane click selection without `E21`.
+  received local verdict `APPROVED`, was delivered through GitHub PR #2, and
+  is present in merge commit `794a7c6fe09abb335fb7c14273614a796b365631` on
+  `origin/main`. Native terminal mouse interaction was verified in an
+  independent PTY, including bidirectional divider drag, minimum width
+  behavior, and left-pane click selection without `E21`.
 
 ## Active blockers
 
-- None. Local review passed; lightweight PR delivery is the next action.
+- TASK-003 local review is `CHANGES_REQUESTED` at candidate `c1fffc1`. The same
+  isolated branch remains active; no PR has been opened and no delivery claim
+  is made.
 
 ## Next orchestration action
 
-Push `task/TASK-002-diff-workbench`, open its single PR to `main`, merge it
-promptly if mergeable, verify the merged `origin/main`, and then reconcile the
-TASK-002 records before issuing TASK-003.
+Return TASK-003 to the implementer on
+`task/TASK-003-project-browser-settings`; address the latest review findings,
+rerun validation, and stop at `READY_FOR_REVIEW` for another local review.

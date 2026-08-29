@@ -1,7 +1,10 @@
--- novim/workbench.lua - Read-Only Git Diff Workbench
+-- novim/workbench.lua - Unified Project Browser & Read-Only Git Diff Workbench
 -- Part of novim custom derivative
 
 local git = require("novim.git")
+local browser = require("novim.browser")
+local settings = require("novim.settings")
+local settings_ui = require("novim.settings_ui")
 
 local M = {}
 
@@ -10,6 +13,16 @@ local state = {
   is_open = false,
   is_tab = false,
   tab_id = nil,
+  view_mode = "files", -- "files" (Project Browser) or "diff" (Git Diff)
+  root_dir = nil,
+
+  -- Project Browser State
+  project_files = {},
+  project_stats = { file_count = 0, dir_count = 0, dot_count = 0 },
+  selected_project_index = 1,
+  line_to_project_index = {},
+
+  -- Git Diff State
   is_git = false,
   repo_root = nil,
   has_head = false,
@@ -18,6 +31,7 @@ local state = {
   err = nil,
   selected_index = 1,
   line_to_file_index = {},
+
   header_line_count = 4,
   buf_left = nil,
   win_left = nil,
@@ -40,6 +54,11 @@ local function setup_highlights()
   hl("WorkbenchClean", { fg = "#9ece6a", bold = true })
   hl("WorkbenchError", { fg = "#f7768e", bold = true })
 
+  -- Tabs
+  hl("WorkbenchTabActive", { fg = "#7aa2f7", bg = "#24283b", bold = true })
+  hl("WorkbenchTabInactive", { fg = "#565f89", bg = "#1a1b26" })
+  hl("WorkbenchTabAction", { fg = "#e0af68" })
+
   -- File status highlights
   hl("WorkbenchStatusM", { fg = "#e0af68", bold = true }) -- Modified (Yellow/Orange)
   hl("WorkbenchStatusA", { fg = "#9ece6a", bold = true }) -- Added (Green)
@@ -47,7 +66,12 @@ local function setup_highlights()
   hl("WorkbenchStatusD", { fg = "#f7768e", bold = true }) -- Deleted (Red)
   hl("WorkbenchStatusR", { fg = "#bb9af7", bold = true }) -- Renamed (Magenta)
 
-  -- File paths & markers
+  -- Project Browser highlights
+  hl("WorkbenchBrowserDir", { fg = "#7aa2f7", bold = true })
+  hl("WorkbenchBrowserFile", { fg = "#c0caf5" })
+  hl("WorkbenchBrowserDot", { fg = "#565f89", italic = true })
+
+  -- Markers & Hints
   hl("WorkbenchPath", { fg = "#c0caf5" })
   hl("WorkbenchActiveMarker", { fg = "#7aa2f7", bold = true })
   hl("WorkbenchKeyHint", { fg = "#7aa2f7" })
@@ -64,10 +88,10 @@ local function setup_highlights()
   hl("diffSubname", { fg = "#9aa5ce" })
 end
 
---- Format summary line
+--- Format summary line for Git Diff
 ---@param stats table
 ---@return string
-local function format_summary(stats)
+local function format_diff_summary(stats)
   if stats.total == 0 then
     return " ✓ Working tree clean (no changes vs HEAD)"
   end
@@ -92,7 +116,7 @@ local function format_summary(stats)
   return " Changes: " .. stats.total .. " (" .. table.concat(parts, ", ") .. ")"
 end
 
---- Render the left pane (file list)
+--- Render the left pane (Project Files or Git Diff)
 function M.render_left_pane()
   if not state.buf_left or not vim.api.nvim_buf_is_valid(state.buf_left) then
     return
@@ -104,99 +128,174 @@ function M.render_left_pane()
   local lines = {}
   local highlights = {} -- list of { line, col_start, col_end, group }
   state.line_to_file_index = {}
+  state.line_to_project_index = {}
 
-  -- Line 1: Header
-  table.insert(lines, " DIFF WORKBENCH (vs HEAD)")
-  table.insert(highlights, { #lines - 1, 0, -1, "WorkbenchHeader" })
+  local is_files_view = (state.view_mode == "files")
+  local show_dots = settings.get("show_dotfiles")
 
-  -- Line 2: Divider
-  table.insert(lines, " " .. string.rep("─", 38))
+  -- Header Line 1: Main Title & Action Hint
+  if is_files_view then
+    table.insert(lines, " PROJECT BROWSER                [s: Settings]")
+  else
+    table.insert(lines, " DIFF WORKBENCH (vs HEAD)       [s: Settings]")
+  end
+  table.insert(highlights, { #lines - 1, 0, 24, "WorkbenchHeader" })
+  table.insert(highlights, { #lines - 1, 28, -1, "WorkbenchTabAction" })
+
+  -- Header Line 2: Tab Bar
+  local tab_files = is_files_view and "▶ [1: Files] " or "  [1: Files] "
+  local tab_diff = not is_files_view and "▶ [2: Git Diff] " or "  [2: Git Diff] "
+  local tab_line = " " .. tab_files .. " " .. tab_diff
+  table.insert(lines, tab_line)
+
+  local line_idx = #lines - 1
+  if is_files_view then
+    table.insert(highlights, { line_idx, 1, 14, "WorkbenchTabActive" })
+    table.insert(highlights, { line_idx, 15, -1, "WorkbenchTabInactive" })
+  else
+    table.insert(highlights, { line_idx, 1, 14, "WorkbenchTabInactive" })
+    table.insert(highlights, { line_idx, 15, -1, "WorkbenchTabActive" })
+  end
+
+  -- Header Line 3: Divider
+  table.insert(lines, " " .. string.rep("─", 44))
   table.insert(highlights, { #lines - 1, 0, -1, "WorkbenchDivider" })
 
-  if not state.is_git then
-    -- Not a git repo state
-    table.insert(lines, " [Not a Git Repository]")
-    table.insert(highlights, { #lines - 1, 1, -1, "WorkbenchError" })
-
-    table.insert(lines, " Current directory is not a git worktree.")
-    table.insert(highlights, { #lines - 1, 0, -1, "WorkbenchSubHeader" })
-
-    table.insert(lines, " ")
-    table.insert(lines, " Tip: Open novim-dev inside a Git repo.")
-    table.insert(highlights, { #lines - 1, 0, -1, "WorkbenchSummary" })
-  elseif state.err then
-    -- Git error state
-    table.insert(lines, " [Git Status Error]")
-    table.insert(highlights, { #lines - 1, 1, -1, "WorkbenchError" })
-
-    table.insert(lines, " " .. tostring(state.err))
-    table.insert(highlights, { #lines - 1, 0, -1, "WorkbenchSubHeader" })
-  elseif #state.files == 0 then
-    -- Clean working tree state
-    table.insert(lines, " ✓ Working tree clean")
-    table.insert(highlights, { #lines - 1, 1, -1, "WorkbenchClean" })
-
-    table.insert(lines, " No changed or untracked files relative to HEAD.")
-    table.insert(highlights, { #lines - 1, 0, -1, "WorkbenchSubHeader" })
-
-    table.insert(lines, " ")
-    table.insert(lines, " " .. string.rep("─", 38))
-    table.insert(highlights, { #lines - 1, 0, -1, "WorkbenchDivider" })
-
-    table.insert(lines, " Press 'r' to refresh, '?' for help, 'q' to quit.")
-    table.insert(highlights, { #lines - 1, 0, -1, "WorkbenchSummary" })
-  else
-    -- Summary line
-    local summary = format_summary(state.stats)
-    table.insert(lines, summary)
+  if is_files_view then
+    -- === Project Browser View ===
+    local dot_status = show_dots and "dot-folders: visible" or "dot-folders: hidden"
+    local summary_text = string.format(" Files: %d, Dirs: %d (%s)", state.project_stats.file_count, state.project_stats.dir_count, dot_status)
+    table.insert(lines, summary_text)
     table.insert(highlights, { #lines - 1, 0, -1, "WorkbenchSummary" })
 
-    -- Line: Divider
-    table.insert(lines, " " .. string.rep("─", 38))
+    table.insert(lines, " " .. string.rep("─", 44))
     table.insert(highlights, { #lines - 1, 0, -1, "WorkbenchDivider" })
 
     state.header_line_count = #lines
 
-    -- File entries
-    for idx, file in ipairs(state.files) do
-      local marker = (idx == state.selected_index) and "▶" or " "
-      local status_label = file.status
-      if status_label == "??" then
-        status_label = "U "
-      elseif #status_label == 1 then
-        status_label = status_label .. " "
+    if #state.project_files == 0 then
+      table.insert(lines, " (Project directory has no visible files)")
+      table.insert(highlights, { #lines - 1, 1, -1, "WorkbenchSubHeader" })
+      table.insert(lines, " Press 's' to show dot-folders or 'r' to refresh.")
+      table.insert(highlights, { #lines - 1, 1, -1, "WorkbenchSummary" })
+    else
+      for idx, entry in ipairs(state.project_files) do
+        local marker = (idx == state.selected_project_index) and "▶" or " "
+        local indent = string.rep("  ", entry.depth)
+        local icon = entry.is_dir and "📁 " or "📄 "
+        local display_name = entry.name .. (entry.is_dir and "/" or "")
+
+        local line_text = string.format(" %s %s%s%s", marker, indent, icon, display_name)
+        table.insert(lines, line_text)
+
+        local current_line_idx = #lines - 1
+        state.line_to_project_index[current_line_idx + 1] = idx
+
+        -- Marker highlight
+        if idx == state.selected_project_index then
+          table.insert(highlights, { current_line_idx, 1, 2, "WorkbenchActiveMarker" })
+        end
+
+        -- Entry highlight
+        local entry_hl = "WorkbenchBrowserFile"
+        if entry.is_dir then
+          entry_hl = "WorkbenchBrowserDir"
+        elseif entry.is_dot then
+          entry_hl = "WorkbenchBrowserDot"
+        end
+
+        local text_start_col = 3 + #indent + #icon
+        table.insert(highlights, { current_line_idx, text_start_col, -1, entry_hl })
       end
+    end
 
-      local display_name = file.path
-      if file.orig_path then
-        display_name = file.orig_path .. " -> " .. file.path
+  else
+    -- === Git Diff View ===
+    if not state.is_git then
+      -- Not a git repo state
+      table.insert(lines, " [Not a Git Repository]")
+      table.insert(highlights, { #lines - 1, 1, -1, "WorkbenchError" })
+
+      table.insert(lines, " Current directory is not a git worktree.")
+      table.insert(highlights, { #lines - 1, 0, -1, "WorkbenchSubHeader" })
+
+      table.insert(lines, " ")
+      table.insert(lines, " Tip: Open novim-dev inside a Git repo.")
+      table.insert(highlights, { #lines - 1, 0, -1, "WorkbenchSummary" })
+    elseif state.err then
+      -- Git error state
+      table.insert(lines, " [Git Status Error]")
+      table.insert(highlights, { #lines - 1, 1, -1, "WorkbenchError" })
+
+      table.insert(lines, " " .. tostring(state.err))
+      table.insert(highlights, { #lines - 1, 0, -1, "WorkbenchSubHeader" })
+    elseif #state.files == 0 then
+      -- Clean working tree state
+      table.insert(lines, " ✓ Working tree clean")
+      table.insert(highlights, { #lines - 1, 1, -1, "WorkbenchClean" })
+
+      table.insert(lines, " No changed or untracked files relative to HEAD.")
+      table.insert(highlights, { #lines - 1, 0, -1, "WorkbenchSubHeader" })
+
+      table.insert(lines, " ")
+      table.insert(lines, " " .. string.rep("─", 44))
+      table.insert(highlights, { #lines - 1, 0, -1, "WorkbenchDivider" })
+
+      table.insert(lines, " Press 'r' to refresh, '?' for help, 'q' to quit.")
+      table.insert(highlights, { #lines - 1, 0, -1, "WorkbenchSummary" })
+    else
+      -- Summary line
+      local summary = format_diff_summary(state.stats)
+      table.insert(lines, summary)
+      table.insert(highlights, { #lines - 1, 0, -1, "WorkbenchSummary" })
+
+      -- Line: Divider
+      table.insert(lines, " " .. string.rep("─", 44))
+      table.insert(highlights, { #lines - 1, 0, -1, "WorkbenchDivider" })
+
+      state.header_line_count = #lines
+
+      -- File entries
+      for idx, file in ipairs(state.files) do
+        local marker = (idx == state.selected_index) and "▶" or " "
+        local status_label = file.status
+        if status_label == "??" then
+          status_label = "U "
+        elseif #status_label == 1 then
+          status_label = status_label .. " "
+        end
+
+        local display_name = file.path
+        if file.orig_path then
+          display_name = file.orig_path .. " -> " .. file.path
+        end
+
+        local line_text = string.format(" %s [%s] %s", marker, status_label, display_name)
+        table.insert(lines, line_text)
+
+        local current_line_idx = #lines - 1
+        state.line_to_file_index[current_line_idx + 1] = idx
+
+        -- Highlight marker
+        if idx == state.selected_index then
+          table.insert(highlights, { current_line_idx, 1, 2, "WorkbenchActiveMarker" })
+        end
+
+        -- Highlight status tag
+        local hl_group = "WorkbenchStatusM"
+        if file.status == "??" or file.status == "U" then
+          hl_group = "WorkbenchStatusU"
+        elseif file.status == "A" then
+          hl_group = "WorkbenchStatusA"
+        elseif file.status == "D" then
+          hl_group = "WorkbenchStatusD"
+        elseif file.status == "R" then
+          hl_group = "WorkbenchStatusR"
+        end
+
+        table.insert(highlights, { current_line_idx, 3, 7, hl_group })
+        table.insert(highlights, { current_line_idx, 8, -1, "WorkbenchPath" })
       end
-
-      local line_text = string.format(" %s [%s] %s", marker, status_label, display_name)
-      table.insert(lines, line_text)
-
-      local line_idx = #lines - 1
-      state.line_to_file_index[line_idx + 1] = idx
-
-      -- Highlight marker
-      if idx == state.selected_index then
-        table.insert(highlights, { line_idx, 1, 2, "WorkbenchActiveMarker" })
-      end
-
-      -- Highlight status tag
-      local hl_group = "WorkbenchStatusM"
-      if file.status == "??" or file.status == "U" then
-        hl_group = "WorkbenchStatusU"
-      elseif file.status == "A" then
-        hl_group = "WorkbenchStatusA"
-      elseif file.status == "D" then
-        hl_group = "WorkbenchStatusD"
-      elseif file.status == "R" then
-        hl_group = "WorkbenchStatusR"
-      end
-
-      table.insert(highlights, { line_idx, 3, 7, hl_group })
-      table.insert(highlights, { line_idx, 8, -1, "WorkbenchPath" })
     end
   end
 
@@ -215,15 +314,22 @@ function M.render_left_pane()
   end
 
   -- Position cursor on selected file line if left window is valid
-  if state.win_left and vim.api.nvim_win_is_valid(state.win_left) and #state.files > 0 then
-    local target_line = state.header_line_count + state.selected_index
-    if target_line <= #lines then
-      pcall(vim.api.nvim_win_set_cursor, state.win_left, { target_line, 1 })
+  if state.win_left and vim.api.nvim_win_is_valid(state.win_left) then
+    if is_files_view and #state.project_files > 0 then
+      local target_line = state.header_line_count + state.selected_project_index
+      if target_line <= #lines then
+        pcall(vim.api.nvim_win_set_cursor, state.win_left, { target_line, 1 })
+      end
+    elseif not is_files_view and #state.files > 0 then
+      local target_line = state.header_line_count + state.selected_index
+      if target_line <= #lines then
+        pcall(vim.api.nvim_win_set_cursor, state.win_left, { target_line, 1 })
+      end
     end
   end
 end
 
---- Render the right pane (diff preview)
+--- Render the right pane (Project File Preview or Git Diff Preview)
 function M.render_right_pane()
   if not state.buf_right or not vim.api.nvim_buf_is_valid(state.buf_right) then
     return
@@ -233,75 +339,85 @@ function M.render_right_pane()
   vim.bo[state.buf_right].modifiable = true
 
   local lines = {}
-  local is_diff_view = true
+  local is_diff_syntax = false
 
-  if not state.is_git then
-    is_diff_view = false
-    lines = {
-      "# ===================================================================",
-      "# Diff Workbench (Read-Only)",
-      "# ===================================================================",
-      "#",
-      "# Not a Git repository.",
-      "# The current directory is not part of a Git working tree.",
-      "#",
-      "# To use the Diff Workbench:",
-      "#   1. Navigate to a Git repository in your terminal.",
-      "#   2. Run: novim-dev",
-      "#",
-      "# Shortcuts:",
-      "#   [q] or [Esc Esc] Quit workbench",
-      "#   [?]             Show help",
-    }
-  elseif state.err then
-    is_diff_view = false
-    lines = {
-      "# ===================================================================",
-      "# Git Status Error",
-      "# ===================================================================",
-      "#",
-      "# Error details:",
-      "# " .. tostring(state.err),
-      "#",
-      "# Press 'r' to retry / refresh.",
-    }
-  elseif #state.files == 0 then
-    is_diff_view = false
-    lines = {
-      "# ===================================================================",
-      "# Diff Workbench (vs HEAD)",
-      "# ===================================================================",
-      "#",
-      "# ✓ Working tree is clean.",
-      "# No modified, added, deleted, or untracked files found relative to HEAD.",
-      "#",
-      "# Shortcuts:",
-      "#   [r]             Refresh Git status",
-      "#   [q] or [Esc Esc] Quit workbench",
-      "#   [?]             Show help",
-    }
+  if state.view_mode == "files" then
+    -- === Project File Preview ===
+    local selected_entry = state.project_files[state.selected_project_index]
+    local show_dots = settings.get("show_dotfiles")
+    lines, _ = browser.get_preview(selected_entry, state.root_dir, show_dots)
+    is_diff_syntax = false
   else
-    local file = state.files[state.selected_index]
-    if file then
-      local diff_lines, is_binary = git.get_file_diff(file, state.repo_root)
-      if is_binary then
-        is_diff_view = true
-        lines = {
-          "diff --git a/" .. file.path .. " b/" .. file.path,
-          "# Binary file differs from HEAD",
-          "# Path: " .. file.path,
-          "# Status: " .. file.status .. " (" .. (file.is_untracked and "Untracked" or "Tracked") .. ")",
-          "# Note: Binary content preview is not text-renderable in diff view.",
-        }
-        for _, l in ipairs(diff_lines) do
-          table.insert(lines, l)
+    -- === Git Diff Preview ===
+    if not state.is_git then
+      lines = {
+        "# ===================================================================",
+        "# Diff Workbench (Read-Only)",
+        "# ===================================================================",
+        "#",
+        "# Not a Git repository.",
+        "# The current directory is not part of a Git working tree.",
+        "#",
+        "# To use the Diff Workbench:",
+        "#   1. Navigate to a Git repository in your terminal.",
+        "#   2. Run: novim-dev",
+        "#",
+        "# Shortcuts:",
+        "#   [1] or [b]      Switch to Project Browser",
+        "#   [s]             Open Settings",
+        "#   [q] or [Esc Esc] Quit workbench",
+        "#   [?]             Show help",
+      }
+    elseif state.err then
+      lines = {
+        "# ===================================================================",
+        "# Git Status Error",
+        "# ===================================================================",
+        "#",
+        "# Error details:",
+        "# " .. tostring(state.err),
+        "#",
+        "# Press 'r' to retry / refresh.",
+      }
+    elseif #state.files == 0 then
+      lines = {
+        "# ===================================================================",
+        "# Diff Workbench (vs HEAD)",
+        "# ===================================================================",
+        "#",
+        "# ✓ Working tree is clean.",
+        "# No modified, added, deleted, or untracked files found relative to HEAD.",
+        "#",
+        "# Shortcuts:",
+        "#   [1] or [b]      Switch to Project Browser",
+        "#   [s]             Open Settings",
+        "#   [r]             Refresh Git status",
+        "#   [q] or [Esc Esc] Quit workbench",
+        "#   [?]             Show help",
+      }
+    else
+      local file = state.files[state.selected_index]
+      if file then
+        local diff_lines, is_binary = git.get_file_diff(file, state.repo_root)
+        if is_binary then
+          is_diff_syntax = true
+          lines = {
+            "diff --git a/" .. file.path .. " b/" .. file.path,
+            "# Binary file differs from HEAD",
+            "# Path: " .. file.path,
+            "# Status: " .. file.status .. " (" .. (file.is_untracked and "Untracked" or "Tracked") .. ")",
+            "# Note: Binary content preview is not text-renderable in diff view.",
+          }
+          for _, l in ipairs(diff_lines) do
+            table.insert(lines, l)
+          end
+        else
+          lines = diff_lines
+          is_diff_syntax = true
         end
       else
-        lines = diff_lines
+        lines = { "# No file selected" }
       end
-    else
-      is_diff_view = false
-      lines = { "# No file selected" }
     end
   end
 
@@ -309,29 +425,79 @@ function M.render_right_pane()
   vim.bo[state.buf_right].modifiable = false
   vim.bo[state.buf_right].readonly = true
 
-  if is_diff_view then
+  if is_diff_syntax then
     vim.bo[state.buf_right].filetype = "diff"
   else
     vim.bo[state.buf_right].filetype = "conf"
   end
 end
 
---- Select a specific file index and update preview
+--- Select a specific item in the active view and update preview
 ---@param index integer
 function M.select_file(index)
-  if #state.files == 0 then return end
-  if index < 1 then index = 1 end
-  if index > #state.files then index = #state.files end
+  if state.view_mode == "files" then
+    if #state.project_files == 0 then return end
+    if index < 1 then index = 1 end
+    if index > #state.project_files then index = #state.project_files end
 
-  if state.selected_index ~= index then
-    state.selected_index = index
-    M.render_left_pane()
+    if state.selected_project_index ~= index then
+      state.selected_project_index = index
+      M.render_left_pane()
+    end
+    M.render_right_pane()
+  else
+    if #state.files == 0 then return end
+    if index < 1 then index = 1 end
+    if index > #state.files then index = #state.files end
+
+    if state.selected_index ~= index then
+      state.selected_index = index
+      M.render_left_pane()
+    end
+    M.render_right_pane()
   end
+end
+
+--- Switch active view mode
+---@param mode "files" | "diff"
+function M.set_view(mode)
+  if mode ~= "files" and mode ~= "diff" then return end
+  if state.view_mode == mode then return end
+
+  state.view_mode = mode
+  M.render_left_pane()
   M.render_right_pane()
 end
 
---- Refresh workbench data from git
+--- Toggle between "files" and "diff" views
+function M.toggle_view()
+  if state.view_mode == "files" then
+    M.set_view("diff")
+  else
+    M.set_view("files")
+  end
+end
+
+--- Open settings modal
+function M.open_settings()
+  settings_ui.open(function(key, value)
+    -- On settings change, refresh workbench
+    M.refresh()
+  end)
+end
+
+--- Refresh workbench data (both Project Files and Git Diff)
 function M.refresh()
+  state.root_dir = vim.fn.getcwd()
+
+  -- 1. Refresh Project Browser
+  local show_dots = settings.get("show_dotfiles")
+  state.project_files, state.project_stats = browser.get_tree(state.root_dir, show_dots)
+  if state.selected_project_index > #state.project_files then
+    state.selected_project_index = math.max(1, #state.project_files)
+  end
+
+  -- 2. Refresh Git Diff
   state.is_git, state.repo_root = git.get_repo_info()
   if state.is_git then
     state.has_head = git.has_head(state.repo_root)
@@ -358,12 +524,21 @@ local function on_left_cursor_moved()
 
   local cursor = vim.api.nvim_win_get_cursor(state.win_left)
   local line_num = cursor[1]
-  local file_idx = state.line_to_file_index[line_num]
 
-  if file_idx and file_idx ~= state.selected_index then
-    state.selected_index = file_idx
-    M.render_left_pane()
-    M.render_right_pane()
+  if state.view_mode == "files" then
+    local p_idx = state.line_to_project_index[line_num]
+    if p_idx and p_idx ~= state.selected_project_index then
+      state.selected_project_index = p_idx
+      M.render_left_pane()
+      M.render_right_pane()
+    end
+  else
+    local f_idx = state.line_to_file_index[line_num]
+    if f_idx and f_idx ~= state.selected_index then
+      state.selected_index = f_idx
+      M.render_left_pane()
+      M.render_right_pane()
+    end
   end
 end
 
@@ -371,11 +546,38 @@ end
 local function on_left_click()
   local mouse = vim.fn.getmousepos()
   if mouse.winid == state.win_left then
-    local file_idx = state.line_to_file_index[mouse.line]
-    if file_idx then
-      state.selected_index = file_idx
-      M.render_left_pane()
-      M.render_right_pane()
+    -- Check if click was on header tabs
+    if mouse.line == 1 then
+      -- Clicked on "[s: Settings]"
+      if mouse.column >= 25 then
+        M.open_settings()
+        return
+      end
+    elseif mouse.line == 2 then
+      -- Clicked on tab bar
+      if mouse.column <= 14 then
+        M.set_view("files")
+        return
+      else
+        M.set_view("diff")
+        return
+      end
+    end
+
+    if state.view_mode == "files" then
+      local p_idx = state.line_to_project_index[mouse.line]
+      if p_idx then
+        state.selected_project_index = p_idx
+        M.render_left_pane()
+        M.render_right_pane()
+      end
+    else
+      local file_idx = state.line_to_file_index[mouse.line]
+      if file_idx then
+        state.selected_index = file_idx
+        M.render_left_pane()
+        M.render_right_pane()
+      end
     end
   end
 end
@@ -383,30 +585,32 @@ end
 --- Show help popup
 function M.show_help()
   local help_lines = {
-    " novim-dev Diff Workbench (Read-Only)",
-    " ────────────────────────────────────────────────",
+    " novim-dev Workbench & Project Browser (Read-Only)",
+    " ────────────────────────────────────────────────────────",
+    " Views:",
+    "   [1] or [b]       Project Files Browser",
+    "   [2] or [d]       Git Diff Workbench (vs HEAD)",
+    "   [s]              Settings (toggle dot-folders)",
+    " ────────────────────────────────────────────────────────",
     " Navigation:",
-    "   j / k or ↑ / ↓   Move between changed files",
-    "   Left Click       Select file and preview diff",
-    "   Enter / Space    Select file and preview diff",
-    "   Tab / S-Tab      Switch between file list and diff",
+    "   j / k or ↑ / ↓   Move between items",
+    "   Left Click       Select item / switch tabs",
+    "   Enter / Space    Select item",
+    "   Tab / S-Tab      Switch between left and right panes",
     "   Drag Divider     Resize left/right panes with mouse",
-    "   r                Refresh Git status & diff",
+    "   r                Refresh files and Git status",
     "   ?                Show this help",
     "   q or Esc Esc     Quit / Close workbench",
-    " ────────────────────────────────────────────────",
-    " Status Indicators:",
-    "   [M ] Modified    Tracked file modified vs HEAD",
-    "   [U ] Untracked   New untracked file (all additions)",
-    "   [A ] Added       New file staged in index",
-    "   [D ] Deleted     Tracked file deleted vs HEAD",
-    "   [R ] Renamed     Tracked file renamed vs HEAD",
-    " ────────────────────────────────────────────────",
-    " Note: Workbench is strictly read-only.",
-    " No git stage, commit, or discard operations exist.",
+    " ────────────────────────────────────────────────────────",
+    " Settings & Display:",
+    "   Dot-folders & hidden files are hidden by default.",
+    "   Press [s] to open Settings and toggle visibility.",
+    "   Settings persist across launches in isolated state.",
+    " ────────────────────────────────────────────────────────",
+    " Note: Workbench is strictly read-only inspection.",
   }
 
-  local width = 56
+  local width = 60
   local height = #help_lines + 2
   local row = math.max(1, math.floor((vim.o.lines - height) / 2))
   local col = math.max(1, math.floor((vim.o.columns - width) / 2))
@@ -424,7 +628,7 @@ function M.show_help()
     col = col,
     style = "minimal",
     border = "rounded",
-    title = " Diff Workbench Help ",
+    title = " Workbench Help ",
     title_pos = "center",
   })
 
@@ -491,7 +695,6 @@ function M.close(opts)
 
   -- Workbench is the only UI
   if opts.quit then
-    -- User explicitly pressed q in standalone startup mode: check unsaved buffers
     local unsaved = false
     for _, buf in ipairs(vim.api.nvim_list_bufs()) do
       if vim.api.nvim_buf_is_loaded(buf) and vim.bo[buf].modified then
@@ -510,7 +713,6 @@ function M.close(opts)
       pcall(vim.cmd, "qa")
     end
   else
-    -- Programmatic close without quitting editor
     state.is_open = false
     if state.win_right and vim.api.nvim_win_is_valid(state.win_right) then
       pcall(vim.api.nvim_win_close, state.win_right, true)
@@ -526,9 +728,15 @@ function M.close(opts)
   end
 end
 
---- Open the Diff Workbench
-function M.open()
+--- Open the Workbench
+---@param opts? { view?: "files" | "diff" }
+function M.open(opts)
   setup_highlights()
+  opts = opts or {}
+
+  if opts.view then
+    state.view_mode = opts.view
+  end
 
   -- If already open, focus left window and refresh
   if state.is_open and state.win_left and vim.api.nvim_win_is_valid(state.win_left) then
@@ -551,7 +759,6 @@ function M.open()
   local is_existing_session = (buf_name ~= "" or is_modified or #vim.api.nvim_list_wins() > 1 or #vim.api.nvim_list_tabpages() > 1)
 
   if is_existing_session then
-    -- Open workbench in a dedicated tabpage so user's existing layout and unsaved edits remain intact
     vim.cmd("tabnew")
     state.is_tab = true
     state.tab_id = vim.api.nvim_get_current_tabpage()
@@ -565,8 +772,8 @@ function M.open()
   state.buf_left = vim.api.nvim_create_buf(false, true)
   state.buf_right = vim.api.nvim_create_buf(false, true)
 
-  vim.api.nvim_buf_set_name(state.buf_left, "[Diff Workbench - Files]")
-  vim.api.nvim_buf_set_name(state.buf_right, "[Diff Workbench - Preview]")
+  vim.api.nvim_buf_set_name(state.buf_left, "[Workbench - Navigation]")
+  vim.api.nvim_buf_set_name(state.buf_right, "[Workbench - Preview]")
 
   for _, buf in ipairs({ state.buf_left, state.buf_right }) do
     vim.bo[buf].buftype = "nofile"
@@ -590,7 +797,7 @@ function M.open()
   -- Set left window width
   vim.api.nvim_win_set_width(state.win_left, left_width)
 
-  -- Window options for left window
+  -- Window options
   local function set_win_opts(win, is_left)
     if not vim.api.nvim_win_is_valid(win) then return end
     vim.wo[win].number = not is_left
@@ -601,9 +808,9 @@ function M.open()
     vim.wo[win].spell = false
     vim.wo[win].foldenable = false
     if is_left then
-      vim.wo[win].statusline = " %f %=[↑/↓/Click] Select  [Tab] Diff  [r] Refresh  [?] Help  [Esc Esc] Quit "
+      vim.wo[win].statusline = " %f %=[1] Files  [2] Diff  [s] Settings  [r] Refresh  [?] Help "
     else
-      vim.wo[win].statusline = " %f %=[Tab] Files  [r] Refresh  [?] Help  [Esc Esc] Quit "
+      vim.wo[win].statusline = " %f %=[Tab] Explorer  [?] Help  [Esc Esc] Quit "
     end
   end
 
@@ -614,48 +821,71 @@ function M.open()
   local function set_left_maps(buf)
     local opts = { buffer = buf, silent = true, noremap = true }
 
+    -- View switching
+    vim.keymap.set("n", "1", function() M.set_view("files") end, opts)
+    vim.keymap.set("n", "b", function() M.set_view("files") end, opts)
+    vim.keymap.set("n", "f", function() M.set_view("files") end, opts)
+    vim.keymap.set("n", "2", function() M.set_view("diff") end, opts)
+    vim.keymap.set("n", "d", function() M.set_view("diff") end, opts)
+    vim.keymap.set("n", "g", function() M.set_view("diff") end, opts)
+    vim.keymap.set("n", "s", M.open_settings, opts)
+    vim.keymap.set("n", "S", M.open_settings, opts)
+
+    -- Command line
+    vim.keymap.set("n", ":", ":", { buffer = buf, noremap = true, silent = false })
+
     -- Navigation
     vim.keymap.set("n", "j", function()
-      if #state.files > 0 then
-        local next_idx = math.min(#state.files, state.selected_index + 1)
-        M.select_file(next_idx)
+      local count = (state.view_mode == "files") and #state.project_files or #state.files
+      local cur_idx = (state.view_mode == "files") and state.selected_project_index or state.selected_index
+      if count > 0 then
+        M.select_file(math.min(count, cur_idx + 1))
       end
     end, opts)
 
     vim.keymap.set("n", "k", function()
-      if #state.files > 0 then
-        local prev_idx = math.max(1, state.selected_index - 1)
-        M.select_file(prev_idx)
+      local count = (state.view_mode == "files") and #state.project_files or #state.files
+      local cur_idx = (state.view_mode == "files") and state.selected_project_index or state.selected_index
+      if count > 0 then
+        M.select_file(math.max(1, cur_idx - 1))
       end
     end, opts)
 
     vim.keymap.set("n", "<Down>", function()
-      if #state.files > 0 then
-        local next_idx = math.min(#state.files, state.selected_index + 1)
-        M.select_file(next_idx)
+      local count = (state.view_mode == "files") and #state.project_files or #state.files
+      local cur_idx = (state.view_mode == "files") and state.selected_project_index or state.selected_index
+      if count > 0 then
+        M.select_file(math.min(count, cur_idx + 1))
       end
     end, opts)
 
     vim.keymap.set("n", "<Up>", function()
-      if #state.files > 0 then
-        local prev_idx = math.max(1, state.selected_index - 1)
-        M.select_file(prev_idx)
+      local count = (state.view_mode == "files") and #state.project_files or #state.files
+      local cur_idx = (state.view_mode == "files") and state.selected_project_index or state.selected_index
+      if count > 0 then
+        M.select_file(math.max(1, cur_idx - 1))
       end
     end, opts)
 
     vim.keymap.set("n", "<CR>", function()
       local cursor = vim.api.nvim_win_get_cursor(0)
-      local file_idx = state.line_to_file_index[cursor[1]]
-      if file_idx then
-        M.select_file(file_idx)
+      if state.view_mode == "files" then
+        local p_idx = state.line_to_project_index[cursor[1]]
+        if p_idx then M.select_file(p_idx) end
+      else
+        local f_idx = state.line_to_file_index[cursor[1]]
+        if f_idx then M.select_file(f_idx) end
       end
     end, opts)
 
     vim.keymap.set("n", "<Space>", function()
       local cursor = vim.api.nvim_win_get_cursor(0)
-      local file_idx = state.line_to_file_index[cursor[1]]
-      if file_idx then
-        M.select_file(file_idx)
+      if state.view_mode == "files" then
+        local p_idx = state.line_to_project_index[cursor[1]]
+        if p_idx then M.select_file(p_idx) end
+      else
+        local f_idx = state.line_to_file_index[cursor[1]]
+        if f_idx then M.select_file(f_idx) end
       end
     end, opts)
 
@@ -677,6 +907,17 @@ function M.open()
   -- Keymaps for Right Buffer
   local function set_right_maps(buf)
     local opts = { buffer = buf, silent = true, noremap = true }
+
+    -- View switching
+    vim.keymap.set("n", "1", function() M.set_view("files") end, opts)
+    vim.keymap.set("n", "b", function() M.set_view("files") end, opts)
+    vim.keymap.set("n", "2", function() M.set_view("diff") end, opts)
+    -- Command line
+    vim.keymap.set("n", ":", ":", { buffer = buf, noremap = true, silent = false })
+
+    vim.keymap.set("n", "d", function() M.set_view("diff") end, opts)
+    vim.keymap.set("n", "s", M.open_settings, opts)
+    vim.keymap.set("n", "S", M.open_settings, opts)
 
     -- Pane switching
     vim.keymap.set("n", "<Tab>", function()
@@ -719,17 +960,26 @@ end
 --- Get current workbench state for diagnostics / testing
 ---@return table
 function M.get_state()
+  local active_files = (state.view_mode == "diff") and state.files or state.project_files
   return {
     is_open = state.is_open,
     is_tab = state.is_tab,
     tab_id = state.tab_id,
+    view_mode = state.view_mode,
+    root_dir = state.root_dir,
     is_git = state.is_git,
     repo_root = state.repo_root,
     has_head = state.has_head,
-    file_count = #state.files,
+    file_count = #active_files,
+    git_file_count = #state.files,
+    project_file_count = #state.project_files,
     files = state.files,
+    project_files = state.project_files,
     stats = state.stats,
+    project_stats = state.project_stats,
     selected_index = state.selected_index,
+    selected_project_index = state.selected_project_index,
+    settings = settings.get_all(),
     header_line_count = state.header_line_count,
     win_left = state.win_left,
     win_right = state.win_right,

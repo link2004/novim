@@ -524,10 +524,10 @@ vim.api.nvim_create_autocmd("VimEnter", {
   callback = function()
     if vim.fn.argc() > 0 then return end
 
-    -- Open the Read-Only Git Diff Workbench
+    -- Open the Project Browser Workbench
     local ok, workbench = pcall(require, "novim.workbench")
     if ok and workbench then
-      workbench.open()
+      workbench.open({ view = "files" })
     end
   end,
 })
@@ -691,16 +691,31 @@ local function show_git_log()
   vim.cmd("startinsert")
 end
 
--- Diff Workbench
-local function open_workbench()
+-- Workbench & Project Browser
+local function open_workbench(opts)
   local ok, workbench = pcall(require, "novim.workbench")
   if ok and workbench then
-    workbench.open()
+    workbench.open(opts)
   end
 end
 
-vim.api.nvim_create_user_command("Workbench", open_workbench, { desc = "Open Git Diff Workbench" })
-vim.api.nvim_create_user_command("DiffWorkbench", open_workbench, { desc = "Open Git Diff Workbench" })
+local function open_settings()
+  local ok, workbench = pcall(require, "novim.workbench")
+  if ok and workbench then
+    workbench.open_settings()
+  else
+    local s_ok, settings_ui = pcall(require, "novim.settings_ui")
+    if s_ok and settings_ui then
+      settings_ui.open()
+    end
+  end
+end
+
+vim.api.nvim_create_user_command("Workbench", function() open_workbench() end, { desc = "Open Workbench" })
+vim.api.nvim_create_user_command("DiffWorkbench", function() open_workbench({ view = "diff" }) end, { desc = "Open Git Diff Workbench" })
+vim.api.nvim_create_user_command("ProjectBrowser", function() open_workbench({ view = "files" }) end, { desc = "Open Project File Browser" })
+vim.api.nvim_create_user_command("Files", function() open_workbench({ view = "files" }) end, { desc = "Open Project File Browser" })
+vim.api.nvim_create_user_command("Settings", open_settings, { desc = "Open novim-dev Settings" })
 
 -- Ctrl+G / Cmd+G: Git status
 vim.keymap.set({ "n", "i", "v" }, "<C-g>", show_git_status, { silent = true })
@@ -711,5 +726,9 @@ vim.keymap.set({ "n", "i", "v" }, "<C-l>", show_git_log, { silent = true })
 vim.keymap.set({ "n", "i", "v" }, "<D-l>", show_git_log, { silent = true })
 
 -- Ctrl+D / Cmd+D: Git diff workbench
-vim.keymap.set({ "n", "i", "v" }, "<C-d>", open_workbench, { silent = true, desc = "Open Diff Workbench" })
-vim.keymap.set({ "n", "i", "v" }, "<D-d>", open_workbench, { silent = true, desc = "Open Diff Workbench" })
+vim.keymap.set({ "n", "i", "v" }, "<C-d>", function() open_workbench({ view = "diff" }) end, { silent = true, desc = "Open Diff Workbench" })
+vim.keymap.set({ "n", "i", "v" }, "<D-d>", function() open_workbench({ view = "diff" }) end, { silent = true, desc = "Open Diff Workbench" })
+
+-- Ctrl+E / Cmd+E: Project file browser
+vim.keymap.set({ "n", "i", "v" }, "<C-e>", function() open_workbench({ view = "files" }) end, { silent = true, desc = "Open Project Browser" })
+vim.keymap.set({ "n", "i", "v" }, "<D-e>", function() open_workbench({ view = "files" }) end, { silent = true, desc = "Open Project Browser" })

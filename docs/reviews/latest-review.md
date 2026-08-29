@@ -1,12 +1,12 @@
 # Latest Review
 
 Updated: 2026-08-29
-Task ID: `TASK-002`
+Task ID: `TASK-003`
 Local verdict: `APPROVED`
 Delivery policy: `LIGHTWEIGHT`
-Baseline: `12327b78049e1348df858b589baf669ba451c090` (`origin/main`)
-Candidate: `54ad217047eb07b75b08697129cde3c905418443`
-Task branch: `task/TASK-002-diff-workbench`
+Baseline: `794a7c6fe09abb335fb7c14273614a796b365631` (`origin/main`)
+Candidate: `1a8fb4ac687afa169b6e83c55afb8a48e863a848`
+Task branch: `task/TASK-003-project-browser-settings`
 Pull request: `NOT_OPEN`
 Remote checks: `OPTIONAL / NOT_RUN`
 Merge status: `NOT_DELIVERED`
@@ -14,50 +14,55 @@ Target branch contains change: `NO`
 
 ## Review result
 
-The prior mouse-interaction finding is resolved. The conflicting readonly
-buffer mouse mappings were removed, and native Neovim mouse handling now works
-for both the left-pane selection and the vertical separator.
+The two findings from the prior review are resolved in the candidate. Directory
+previews now apply the active dotfile visibility rule to immediate children and
+report counts for visible items plus hidden dot-items. Settings toggles now
+propagate write failures, retain the persisted/in-memory value on failure, and
+render a non-fatal warning without invoking the workbench refresh callback.
 
-The repository test suite's divider assertions use direct window-width API
-calls because the suite runs headless; they no longer contain a fallback that
-can mask a failed mouse event. Independent PTY interaction supplied the real
-mouse evidence for this acceptance review.
+The complete candidate diff is scoped to TASK-003 implementation, regression
+tests, and workflow records. It preserves the accepted read-only Git workbench,
+launcher isolation, installed release, and no-plugin boundary.
+
+## Findings
+
+None. No correctness, regression, security, privacy, data-integrity, public
+contract, or scope issue remains for this local review.
 
 ## Acceptance evidence
 
 | Criterion | Result | Evidence |
 |---|---|---|
-| Offline fixture launch | PASS | `./tests/run_tests.sh` completed offline under the bundled checkout configuration with 6/6 tests passed. |
-| Changed-file list includes tracked and untracked files | PASS | Special-path regression passes; an independent fixture listed modified, deleted, renamed, staged-added, and untracked entries. |
-| Tracked diff against `HEAD` shows additions/deletions | PASS | Independent fixture selected `tracked.txt` and rendered expected `-base 2`, `+MODIFIED`, and `+added` lines. |
-| Untracked file shows readable all-additions view | PASS | Special-path regression rendered arrow, quote, tab, and Unicode filenames and their content without staging. |
-| Mouse divider resizes both directions and respects minimum widths | PASS | Independent PTY drag measured `26→41`, `41→24`, and `24→15`; no E21 occurred. The automated test separately verifies width bounds and `winminwidth >= 15`. |
-| Left-pane mouse selection is safe and updates the preview | PASS | Independent PTY click on the second changed-file row selected `b.txt` (index 2) and updated the preview without E21. |
-| No Git mutation and exact status/diff invariance | PASS | Test suite compares byte-for-byte before/after `git status --porcelain=v1 -z -uall` and `git diff HEAD`; product Git calls are read-only by source inspection. |
-| Launcher isolation and installed `novim` unchanged | PASS | `./bin/novim-dev --version` reports `0.1.7-dev`; installed `/Users/mert/.local/bin/novim --version` reports `0.1.7`; isolated `.dev-*` paths remain in use. |
-| No new dependency or unrelated upstream site change | PASS | Complete candidate diff adds no plugin/dependency and does not modify upstream site assets. |
+| Fixture launch shows regular project files/directories | PASS | `./tests/run_tests.sh` passed the project-browser fixture checks. |
+| Dot-prefixed entries hidden by default at nested levels | PASS | Automated tree tests cover root dotfiles, nested dotfiles, nested dot-folders, and their contents; the candidate also filters directory-preview children. |
+| Reachable, unambiguous settings toggle | PASS | Settings is reachable through `s`, `:Settings`, and the workbench header; rendered state is explicit `[ ] OFF` / `[X] ON`. |
+| Toggle reveals/hides normal and nested dot entries | PASS | Toggle regression covers root and nested entries in both directions; directory-preview filtering is tested in hidden and revealed states. |
+| Fresh-process persistence | PASS | Settings persistence code uses Neovim `stdpath("state")`, which `novim-dev` isolates to `.dev-state`; cache-reset persistence regression passed. |
+| Missing or malformed settings fallback | PASS | Missing, malformed JSON, and invalid-type cases fall back to `show_dotfiles=false` without throwing. |
+| TASK-002 diff/mouse/read-only invariance | PASS | Existing workbench regression tests passed, including divider bounds, mouse-selection safety, diff rendering, and byte-for-byte status/diff invariance. |
+| No Git mutation, network call, plugin dependency, or installed-release change | PASS | Candidate source inspection found no new mutation/network/plugin path; changed files are scoped; launcher and installed-release version checks passed. |
 
 ## Validation performed
 
-- `./tests/run_tests.sh`: passed, `6 total, 6 passed, 0 failed`.
+- `./tests/run_tests.sh`: passed, `14 total, 14 passed, 0 failed`.
+- `git diff --check 794a7c6fe09abb335fb7c14273614a796b365631..HEAD`: passed.
 - `bash -n bin/novim-dev tests/run_tests.sh`: passed.
-- `git diff --check origin/main...HEAD`: passed.
 - `./bin/novim-dev --version`: passed, `0.1.7-dev` / Neovim `0.12.5`.
 - `/Users/mert/.local/bin/novim --version`: passed, installed `novim 0.1.7`.
-- Independent PTY mouse validation: native divider drag widened and narrowed
-  the left pane and stopped at width 15; native left-pane click selected the
-  second file and updated its diff; no E21 was emitted.
-- Complete candidate diff and repository status inspected; no untracked
-  product files or unrelated source changes found. `.dev-state/` is ignored
-  runtime state.
+- Direct headless UI probe: forced a settings-file write failure, verified the
+  warning text was rendered, verified `show_dotfiles` stayed `false`, and
+  verified the modal remained usable.
+- Complete candidate diff, branch ancestry, remotes, and working-tree status
+  inspected; the task branch is isolated and clean, with no unrelated source
+  or untracked product files.
 
 ## Delivery decision
 
-`APPROVED` for lightweight PR delivery. No hosted, production, recovery, or
-customer-acceptance claim is made by this local review.
+`APPROVED` for lightweight PR delivery. This is local review evidence only; no
+hosted, production, recovery, or customer-acceptance claim is made.
 
 ## Next action
 
-Push `task/TASK-002-diff-workbench`, open or reuse its single PR targeting
-`main`, and merge promptly if it is mergeable and no explicit required check
-blocks it. Verify the merged `origin/main` before marking TASK-002 accepted.
+Push `task/TASK-003-project-browser-settings`, open or reuse its single PR
+targeting `main`, and merge promptly if it is mergeable and no explicit required
+check blocks it. Verify merged `origin/main` before marking TASK-003 accepted.
