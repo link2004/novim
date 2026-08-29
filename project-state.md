@@ -76,8 +76,8 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/10`
 ## Active blockers
 
 - No active blocker. TASK-007 is accepted on `origin/main`, and TASK-008 is
-  planned from the verified `origin/main` baseline. No hosted, production,
-  recovery, or customer-acceptance claim is made.
+  planned from verified `origin/main` commit `4244d103`. No hosted,
+  production, recovery, or customer-acceptance claim is made.
 
 ## Next orchestration action
 

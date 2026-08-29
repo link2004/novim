@@ -6,7 +6,7 @@ Status: `PLANNED`
 Delivery policy: `LIGHTWEIGHT`
 Base branch: `main`
 Task branch: `task/TASK-008-settings-and-resizing`
-Expected baseline: `d8f567a2b1b20d6ab9f9afba7e5ab9d2442ce1c9` (`origin/main`)
+Expected baseline: `4244d1036303e7a0a2ba292b69b4f6c673d1c53b` (`origin/main`)
 Pull request: `NOT_OPEN`
 
 ## Outcome
