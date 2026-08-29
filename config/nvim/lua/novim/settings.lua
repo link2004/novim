@@ -129,13 +129,20 @@ function M.get_all()
   return M.load()
 end
 
---- Toggle dotfiles visibility setting and save immediately
----@return boolean new_value
+--- Toggle dotfiles visibility setting and save immediately.
+--- Returns success flag, optional error message, and effective boolean value.
+--- If save fails, the in-memory setting is NOT updated and the previous value is retained.
+---@return boolean success
+---@return string? error_msg
+---@return boolean effective_value
 function M.toggle_dotfiles()
   local cur = M.get("show_dotfiles")
-  local new_val = not cur
-  M.set("show_dotfiles", new_val)
-  return new_val
+  local target = not cur
+  local ok, err = M.set("show_dotfiles", target)
+  if not ok then
+    return false, err, cur
+  end
+  return true, nil, target
 end
 
 --- Reset in-memory cache (for testing)

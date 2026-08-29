@@ -482,10 +482,10 @@ function tests.test_settings_toggle_reveals_and_hides_dotfiles()
   workbench.open({ view = "files" })
 
   -- 1. Enable show_dotfiles via toggle
-  local new_val = settings.toggle_dotfiles()
+  local ok1, err1, new_val = settings.toggle_dotfiles()
+  assert_true(ok1 == true, "toggle must succeed: " .. tostring(err1))
   assert_true(new_val == true, "toggle must return true")
   assert_true(settings.get("show_dotfiles") == true, "settings.get must return true")
-
   workbench.refresh()
   local state_revealed = workbench.get_state()
   local tree_revealed, _ = browser.get_tree(fixture, true)
@@ -509,10 +509,10 @@ function tests.test_settings_toggle_reveals_and_hides_dotfiles()
   assert_true(paths_revealed["src/utils.lua"] ~= nil, "src/utils.lua must remain visible")
 
   -- 2. Disable show_dotfiles via toggle
-  local val_hidden = settings.toggle_dotfiles()
+  local ok2, err2, val_hidden = settings.toggle_dotfiles()
+  assert_true(ok2 == true, "toggle must succeed: " .. tostring(err2))
   assert_true(val_hidden == false, "toggle must return false")
   assert_true(settings.get("show_dotfiles") == false, "settings.get must return false")
-
   workbench.refresh()
   local tree_hidden, _ = browser.get_tree(fixture, false)
   local paths_hidden = {}
@@ -587,8 +587,39 @@ function tests.test_settings_missing_or_malformed_fallback()
   settings.reset_cache()
   local s3 = settings.load(true)
   assert_eq(s3.show_dotfiles, false, "invalid type in settings file must fall back safely to default false")
-
   -- Restore clean settings file
+  settings.set("show_dotfiles", false)
+end
+
+function tests.test_settings_write_failure_handling()
+  local settings = require("novim.settings")
+  local settings_ui = require("novim.settings_ui")
+  settings.set("show_dotfiles", false)
+
+  local path = settings.get_settings_file_path()
+  os.remove(path)
+  -- Create a directory at settings file path to force a write error
+  vim.fn.mkdir(path, "p")
+
+  settings.reset_cache()
+  local ok, err, eff = settings.toggle_dotfiles()
+  assert_true(ok == false, "toggle_dotfiles must return ok = false when write fails")
+  assert_true(err ~= nil, "error message must be returned")
+  assert_true(eff == false, "effective value must remain false")
+  assert_true(settings.get("show_dotfiles") == false, "settings.get must remain false")
+
+  -- Test Settings UI error rendering
+  settings_ui.open()
+  assert_true(settings_ui.is_open(), "settings UI must open")
+
+  settings_ui.toggle_dotfiles()
+  local state = settings.load(true)
+  assert_true(state.show_dotfiles == false, "settings must not change on write failure")
+
+  -- Clean up the blocker directory
+  vim.fn.delete(path, "rf")
+  settings_ui.close()
+  settings.reset_cache()
   settings.set("show_dotfiles", false)
 end
 
@@ -645,7 +676,7 @@ function tests.test_project_browser_preview()
   assert_true(preview_text:find("File: main.lua") ~= nil, "preview must contain header with filename")
   assert_true(preview_text:find("print%('hello world'%)") ~= nil, "preview must contain file content")
 
-  -- 2. Directory inspection preview
+  -- 2. Directory inspection preview (filtering check)
   local dir_entry = {
     path = "src",
     name = "src",
@@ -654,10 +685,20 @@ function tests.test_project_browser_preview()
     is_dot = false,
     full_path = fixture .. "/src",
   }
-  local dir_preview, _ = browser.get_preview(dir_entry, fixture)
-  local dir_text = table.concat(dir_preview, "\n")
-  assert_true(dir_text:find("Directory: src/") ~= nil, "preview must contain directory header")
-  assert_true(dir_text:find("utils.lua") ~= nil, "directory preview must list child items")
+
+  -- 2a. With dotfiles hidden: .secret_module must NOT appear in directory preview
+  local dir_preview_hidden, _ = browser.get_preview(dir_entry, fixture, false)
+  local dir_text_hidden = table.concat(dir_preview_hidden, "\n")
+  assert_true(dir_text_hidden:find("Directory: src/") ~= nil, "preview must contain directory header")
+  assert_true(dir_text_hidden:find("utils.lua") ~= nil, "directory preview must list regular child item utils.lua")
+  assert_true(dir_text_hidden:find(".secret_module") == nil, "directory preview must NOT list .secret_module when dotfiles hidden")
+  assert_true(dir_text_hidden:find("1 dot%-item hidden") ~= nil, "directory preview must note hidden dot-item count")
+
+  -- 2b. With dotfiles revealed: .secret_module MUST appear in directory preview
+  local dir_preview_revealed, _ = browser.get_preview(dir_entry, fixture, true)
+  local dir_text_revealed = table.concat(dir_preview_revealed, "\n")
+  assert_true(dir_text_revealed:find(".secret_module") ~= nil, "directory preview MUST list .secret_module when revealed")
+  assert_true(dir_text_revealed:find("utils.lua") ~= nil, "directory preview must still list utils.lua")
 
   -- 3. Binary file inspection
   local bin_path = fixture .. "/sample.bin"

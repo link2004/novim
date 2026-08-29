@@ -9,6 +9,7 @@ local state = {
   win = nil,
   buf = nil,
   on_change = nil,
+  last_error = nil,
   ns_id = vim.api.nvim_create_namespace("novim_settings_ui"),
 }
 
@@ -25,6 +26,7 @@ function M.close()
   end
   state.win = nil
   state.buf = nil
+  state.last_error = nil
 end
 
 --- Render settings content in buffer
@@ -57,15 +59,24 @@ function M.render()
     string.format("   ▶ %s Show Dot-Folders & Hidden Files", checkbox),
     string.format("       Status: %s", status_text),
     "",
-    " ────────────────────────────────────────────────────────",
-    " Shortcuts:",
-    "   [Space] / [Enter] / [Click]   Toggle selected setting",
-    "   [t]                           Toggle dot-folders visibility",
-    "   [q] / [Esc]                   Close settings",
-    " ────────────────────────────────────────────────────────",
-    " Storage:",
-    "   Saved to: " .. display_path,
   }
+
+  local error_line_idx = nil
+  if state.last_error then
+    table.insert(lines, " ⚠ " .. tostring(state.last_error))
+    error_line_idx = #lines - 1
+    table.insert(lines, "   (Changes could not be persisted to disk)")
+    table.insert(lines, "")
+  end
+
+  table.insert(lines, " ────────────────────────────────────────────────────────")
+  table.insert(lines, " Shortcuts:")
+  table.insert(lines, "   [Space] / [Enter] / [Click]   Toggle selected setting")
+  table.insert(lines, "   [t]                           Toggle dot-folders visibility")
+  table.insert(lines, "   [q] / [Esc]                   Close settings")
+  table.insert(lines, " ────────────────────────────────────────────────────────")
+  table.insert(lines, " Storage:")
+  table.insert(lines, "   Saved to: " .. display_path)
 
   vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, lines)
   vim.bo[state.buf].modifiable = false
@@ -83,19 +94,34 @@ function M.render()
   add_hl(5, 5, 8, show_dot and "WorkbenchClean" or "WorkbenchSummary")
   add_hl(5, 9, -1, "Normal")
   add_hl(6, 7, -1, show_dot and "WorkbenchClean" or "WorkbenchSubHeader")
-  add_hl(8, 0, -1, "WorkbenchDivider")
-  add_hl(9, 0, -1, "WorkbenchKeyHint")
-  add_hl(13, 0, -1, "WorkbenchDivider")
-  add_hl(14, 0, -1, "WorkbenchKeyHint")
-  add_hl(15, 0, -1, "WorkbenchSubHeader")
+
+  local offset = 0
+  if error_line_idx then
+    add_hl(error_line_idx, 0, -1, "WorkbenchError")
+    add_hl(error_line_idx + 1, 0, -1, "WorkbenchSubHeader")
+    offset = 3
+  end
+
+  add_hl(8 + offset, 0, -1, "WorkbenchDivider")
+  add_hl(9 + offset, 0, -1, "WorkbenchKeyHint")
+  add_hl(13 + offset, 0, -1, "WorkbenchDivider")
+  add_hl(14 + offset, 0, -1, "WorkbenchKeyHint")
+  add_hl(15 + offset, 0, -1, "WorkbenchSubHeader")
 end
 
 --- Toggle the dotfiles setting and notify listeners
 function M.toggle_dotfiles()
-  local new_val = settings.toggle_dotfiles()
+  local ok, err, effective_val = settings.toggle_dotfiles()
+  if not ok then
+    state.last_error = "Failed to save settings: " .. tostring(err)
+    M.render()
+    return
+  end
+
+  state.last_error = nil
   M.render()
   if state.on_change then
-    pcall(state.on_change, "show_dotfiles", new_val)
+    pcall(state.on_change, "show_dotfiles", effective_val)
   end
 end
 
@@ -108,10 +134,11 @@ function M.open(on_change)
     return
   end
 
+  state.last_error = nil
   state.on_change = on_change
 
   local width = 60
-  local height = 18
+  local height = 20
   local row = math.max(1, math.floor((vim.o.lines - height) / 2))
   local col = math.max(1, math.floor((vim.o.columns - width) / 2))
 
@@ -150,7 +177,6 @@ function M.open(on_change)
   vim.keymap.set("n", "<LeftMouse>", function()
     local mouse = vim.fn.getmousepos()
     if mouse.winid == state.win then
-      -- Click anywhere on the option line or toggle
       M.toggle_dotfiles()
     end
   end, opts)

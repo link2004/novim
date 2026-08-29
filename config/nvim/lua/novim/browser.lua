@@ -162,10 +162,21 @@ end
 --- Generate read-only preview lines for a selected project entry
 ---@param entry? ProjectEntry
 ---@param root_dir? string
+---@param show_dotfiles? boolean
 ---@return string[] lines
 ---@return boolean is_text_preview
-function M.get_preview(entry, root_dir)
+function M.get_preview(entry, root_dir, show_dotfiles)
   root_dir = root_dir or vim.fn.getcwd()
+  if show_dotfiles == nil then
+    local s_ok, settings = pcall(require, "novim.settings")
+    if s_ok and settings then
+      show_dotfiles = settings.get("show_dotfiles") == true
+    else
+      show_dotfiles = false
+    end
+  else
+    show_dotfiles = (show_dotfiles == true)
+  end
 
   if not entry then
     return {
@@ -187,7 +198,24 @@ function M.get_preview(entry, root_dir)
 
   if entry.is_dir then
     -- Directory inspection
-    local child_entries = scan_dir_entries(entry.full_path)
+    local raw_children = scan_dir_entries(entry.full_path)
+    local child_entries = {}
+    local hidden_dot_count = 0
+
+    for _, child in ipairs(raw_children) do
+      local is_dot = (child.name:sub(1, 1) == ".")
+      if is_dot and not show_dotfiles then
+        hidden_dot_count = hidden_dot_count + 1
+      else
+        table.insert(child_entries, child)
+      end
+    end
+
+    local items_summary = #child_entries .. " item(s)"
+    if hidden_dot_count > 0 then
+      items_summary = items_summary .. string.format(" (%d dot-item%s hidden)", hidden_dot_count, hidden_dot_count > 1 and "s" or "")
+    end
+
     local lines = {
       "# ===================================================================",
       "# Directory: " .. entry.path .. "/",
@@ -196,13 +224,17 @@ function M.get_preview(entry, root_dir)
       "# Full Path:     " .. entry.full_path,
       "# Type:          Directory" .. (entry.is_dot and " (Dot-Folder / Hidden by default)" or ""),
       "# Depth:         " .. entry.depth,
-      "# Direct Items:  " .. #child_entries .. " item(s)",
+      "# Direct Items:  " .. items_summary,
       "# ───────────────────────────────────────────────────────────────────",
       "# Contents:",
     }
 
     if #child_entries == 0 then
-      table.insert(lines, "#   (Empty directory)")
+      if hidden_dot_count > 0 then
+        table.insert(lines, "#   (No visible items; " .. hidden_dot_count .. " dot-item(s) hidden. Press 's' to show.)")
+      else
+        table.insert(lines, "#   (Empty directory)")
+      end
     else
       local sorted_children = vim.deepcopy(child_entries)
       table.sort(sorted_children, function(a, b)

@@ -344,7 +344,8 @@ function M.render_right_pane()
   if state.view_mode == "files" then
     -- === Project File Preview ===
     local selected_entry = state.project_files[state.selected_project_index]
-    lines, _ = browser.get_preview(selected_entry, state.root_dir)
+    local show_dots = settings.get("show_dotfiles")
+    lines, _ = browser.get_preview(selected_entry, state.root_dir, show_dots)
     is_diff_syntax = false
   else
     -- === Git Diff Preview ===
