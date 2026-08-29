@@ -9,7 +9,7 @@
   "repository": {
     "localPath": "/Users/mert/novim-custom",
     "baseBranch": "main",
-        "taskBranch": "task/TASK-004-source-navigation",
+    "taskBranch": "task/TASK-005-regression-smoke-tests",
     "upstreamUrl": "https://github.com/link2004/novim.git",
     "currentRemoteName": "origin",
     "originUrl": "https://github.com/medonmez/novim-custom.git",
@@ -26,13 +26,13 @@
     "developmentCommandTask": "TASK-001"
   },
   "workflow": {
-        "currentTask": "TASK-004",
-        "currentTaskStatus": "PLANNED",
+    "currentTask": "TASK-005",
+    "currentTaskStatus": "PLANNED",
     "pullRequest": null,
     "remoteChecks": "OPTIONAL / NOT_RUN",
-        "lastAcceptedTask": "TASK-003",
-        "lastAcceptedCommit": "6a9be23522c43110dd4c4053f67ab22c8586d4b9",
-        "lastMergedPullRequest": "https://github.com/medonmez/novim-custom/pull/3"
+    "lastAcceptedTask": "TASK-004",
+    "lastAcceptedCommit": "cdb9140947f0fe4beb9a4748e599e8f769fb6aec",
+    "lastMergedPullRequest": "https://github.com/medonmez/novim-custom/pull/4"
   },
   "canonicalDocs": {
     "repository": "docs/repository.md",

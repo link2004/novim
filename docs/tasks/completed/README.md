@@ -10,3 +10,5 @@ the real diff and completed the repository's delivery policy.
 - `TASK-003-project-browser-settings.md` — project browser and persistent
   dot-folder visibility settings, accepted after local review and GitHub PR #3
   merge.
+- `TASK-004-source-navigation.md` — source-file opening and Files/Git Diff
+  navigation, accepted after local review and GitHub PR #4 merge.
