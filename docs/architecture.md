@@ -1,6 +1,6 @@
 # Architecture
 
-Updated: 2026-08-27
+Updated: 2026-08-29
 Status: `OBSERVED_BASELINE`
 
 ## Current system
@@ -58,6 +58,24 @@ ln -sf /Users/mert/novim-custom/bin/novim-dev ~/.local/bin/novim-dev
 Verification:
 - `novim-dev --version` reports the development launcher without network activity.
 - `novim --version` continues to invoke the upstream release at `~/.local/bin/novim`.
+
+### Local derivative packaging
+
+`bin/novim-dev-package` is an offline, allowlist-based distribution helper:
+
+- `package ARCHIVE` stages `bin/novim-dev`, the complete `config/nvim` tree,
+  `VERSION`, `LICENSE`, and `THIRD_PARTY_LICENSES.md` into a deterministic
+  `novim-custom-<VERSION>.tar.gz` archive;
+- the archive excludes Git metadata, `.dev-*` state, credentials, and private
+  runtime data and does not include the upstream `bin/novim` command; and
+- `install ARCHIVE INSTALL_ROOT` extracts only into a new or empty, explicitly
+  named derivative root. A launcher link, when desired, is user-created at
+  `~/.local/bin/novim-dev`; the installed `novim` path is never a target.
+
+Package creation and installation perform no network or Git history action.
+The manifest, temporary-target verification, and removal boundaries are
+documented in `docs/LOCAL_DISTRIBUTION.md`. Explicit upstream comparison and
+integration is documented separately in `docs/UPSTREAM_SYNC.md`.
 
 ## Local testing and regression smoke layer
 

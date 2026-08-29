@@ -1,7 +1,7 @@
 # Repository Documentation Contract
 
 Repository: `novim-custom`
-Updated: 2026-08-27
+Updated: 2026-08-29
 
 This file is the routing manifest for product documentation and the agent
 workflow. Read it before creating or relocating project records.
@@ -14,6 +14,8 @@ workflow. Read it before creating or relocating project records.
 - Architecture decision records: `docs/adr/`
 - Task backlog and current task: `docs/tasks/`
 - Reviews: `docs/reviews/`
+- Local distribution and synchronization runbooks: `docs/LOCAL_DISTRIBUTION.md`
+  and `docs/UPSTREAM_SYNC.md`
 - Current project state: `project-state.md`
 - Machine-readable project manifest: `docs/project.json`
 - Repository-local agent rules: `AGENTS.md`
@@ -55,3 +57,6 @@ created.
 - Sensitive-data boundaries: source and Git metadata are local. Do not put
   credentials, tokens, private source, or raw user data into repository docs.
   The development command must not perform network actions by default.
+- Packaging boundary: `bin/novim-dev-package` creates and installs an explicit
+  local derivative archive offline; it does not package `bin/novim`, write the
+  installed release paths, or perform upstream synchronization.

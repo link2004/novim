@@ -35,6 +35,22 @@
 curl -fsSL novim.dev/install | bash
 ```
 
+## Local novim-custom derivative
+
+This checkout also provides an offline package/install path for the separate
+`novim-dev` derivative. It never updates the installed `novim` command:
+
+```bash
+PACKAGE_TMP="$(mktemp -d "${TMPDIR:-/tmp}/novim-custom-package.XXXXXX")"
+./bin/novim-dev-package package "$PACKAGE_TMP/novim-custom.tar.gz"
+./bin/novim-dev-package install "$PACKAGE_TMP/novim-custom.tar.gz" "$PACKAGE_TMP/install"
+"$PACKAGE_TMP/install/bin/novim-dev" --version
+```
+
+See [the local distribution guide](docs/LOCAL_DISTRIBUTION.md) and [the safe
+upstream sync runbook](docs/UPSTREAM_SYNC.md) for package contents, temporary
+verification, removal boundaries, and explicit review checkpoints.
+
 ## Update
 
 ```bash
