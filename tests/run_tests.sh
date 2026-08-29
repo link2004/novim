@@ -14,7 +14,7 @@ fi
 
 echo "Running tests using: $PROJECT_ROOT/bin/novim-dev"
 echo "=== Running Diff Workbench & Project Browser Test Suite ==="
-"$PROJECT_ROOT/bin/novim-dev" --headless -u "$PROJECT_ROOT/config/nvim/init.lua" -l "$PROJECT_ROOT/tests/test_workbench.lua"
+"$PROJECT_ROOT/bin/novim-dev" --headless -c "luafile $PROJECT_ROOT/tests/test_workbench.lua"
 
 if [[ "$MODE" == "--all" || "$MODE" == "-a" || "$MODE" == "all" ]]; then
   echo ""

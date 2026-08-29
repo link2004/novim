@@ -14,23 +14,55 @@ local function assert_eq(actual, expected, msg)
   end
 end
 
+-- Resolve project root dynamically from this test script's location
+local script_source = debug.getinfo(1, "S").source
+if script_source:sub(1, 1) == "@" then
+  script_source = script_source:sub(2)
+end
+local script_path = vim.fs.normalize(vim.fn.fnamemodify(script_source, ":p"))
+local project_root = os.getenv("NOVIM_PROJECT_ROOT")
+if not project_root or project_root == "" then
+  project_root = vim.fs.dirname(vim.fs.dirname(script_path))
+end
+project_root = vim.fs.normalize(project_root)
+
+-- Determine run-specific temporary fixture root
+local smoke_temp_root = os.getenv("NOVIM_SMOKE_TEMP_ROOT")
+if not smoke_temp_root or smoke_temp_root == "" or vim.fn.isdirectory(smoke_temp_root) == 0 then
+  smoke_temp_root = vim.fn.tempname() .. "_smoke_root"
+  vim.fn.mkdir(smoke_temp_root, "p")
+end
+smoke_temp_root = vim.fs.normalize(smoke_temp_root)
+
 -- Track all created fixtures to guarantee 100% cleanup even on failure
 local created_fixtures = {}
+local fixture_seq = 0
 
-local function register_fixture(dir)
+local function create_temp_fixture_dir(prefix)
+  fixture_seq = fixture_seq + 1
+  local dir = smoke_temp_root .. "/" .. (prefix or "fixture") .. "_" .. tostring(fixture_seq)
+  vim.fn.mkdir(dir, "p")
   table.insert(created_fixtures, dir)
   return dir
 end
 
 local function cleanup_dir(dir)
   if dir and vim.fn.isdirectory(dir) == 1 then
-    vim.fn.delete(dir, "rf")
+    local res = vim.fn.delete(dir, "rf")
+    if res ~= 0 then
+      error("Failed to delete fixture directory: " .. dir, 2)
+    end
   end
 end
 
 local function cleanup_all_fixtures()
   for _, dir in ipairs(created_fixtures) do
-    cleanup_dir(dir)
+    if vim.fn.isdirectory(dir) == 1 then
+      local res = vim.fn.delete(dir, "rf")
+      if res ~= 0 then
+        error("Failed to delete fixture directory during teardown: " .. dir, 2)
+      end
+    end
   end
 end
 
@@ -44,9 +76,7 @@ end
 
 --- Create a fixture Git repository with tracked modified, deleted, renamed, untracked, binary, and clean files
 local function create_smoke_git_fixture()
-  local fixture_dir = vim.fn.tempname() .. "_smoke_git_fixture"
-  vim.fn.mkdir(fixture_dir, "p")
-  register_fixture(fixture_dir)
+  local fixture_dir = create_temp_fixture_dir("smoke_git_fixture")
 
   run_cmd("git -C " .. vim.fn.shellescape(fixture_dir) .. " init -q")
   run_cmd("git -C " .. vim.fn.shellescape(fixture_dir) .. " config user.email 'smoke-test@example.com'")
@@ -108,9 +138,7 @@ end
 
 --- Create a fixture project with regular files, directories, root dotfiles, and nested dot-folders
 local function create_smoke_project_fixture()
-  local dir = vim.fn.tempname() .. "_smoke_project_fixture"
-  vim.fn.mkdir(dir, "p")
-  register_fixture(dir)
+  local dir = create_temp_fixture_dir("smoke_project_fixture")
 
   -- Top-level regular files
   local f1 = io.open(dir .. "/main.lua", "w")
@@ -168,27 +196,33 @@ local smoke_tests = {}
 -- =========================================================================
 
 function smoke_tests.test_smoke_launcher_startup_and_isolated_paths()
-  local config_path = vim.fn.stdpath("config")
-  local data_path = vim.fn.stdpath("data")
-  local state_path = vim.fn.stdpath("state")
-  local cache_path = vim.fn.stdpath("cache")
+  local config_path = vim.fs.normalize(vim.fn.stdpath("config"))
+  local data_path = vim.fs.normalize(vim.fn.stdpath("data"))
+  local state_path = vim.fs.normalize(vim.fn.stdpath("state"))
+  local cache_path = vim.fs.normalize(vim.fn.stdpath("cache"))
 
-  -- Verify paths are non-empty and point to isolated development directories
-  assert_true(config_path ~= nil and config_path ~= "", "config path must be set")
-  assert_true(data_path ~= nil and data_path ~= "", "data path must be set")
-  assert_true(state_path ~= nil and state_path ~= "", "state path must be set")
-  assert_true(cache_path ~= nil and cache_path ~= "", "cache path must be set")
+  -- Exact expected path derivations from the resolved project root
+  local expected_config = vim.fs.normalize(project_root .. "/config/nvim")
+  local expected_data = vim.fs.normalize(project_root .. "/.dev-data/nvim")
+  local expected_state = vim.fs.normalize(project_root .. "/.dev-state/nvim")
+  local expected_cache = vim.fs.normalize(project_root .. "/.dev-cache/nvim")
 
-  -- Verify runtime paths end in the expected development directory names
-  assert_true(config_path:match("/config$") ~= nil or config_path:match("/config/nvim$") ~= nil or config_path:match("config"), "config path must use checkout config")
-  assert_true(data_path:match("%.dev%-data") ~= nil, "data path must use .dev-data, got: " .. data_path)
-  assert_true(state_path:match("%.dev%-state") ~= nil, "state path must use .dev-state, got: " .. state_path)
-  assert_true(cache_path:match("%.dev%-cache") ~= nil, "cache path must use .dev-cache, got: " .. cache_path)
+  -- Verify stdpath exactly matches the checkout's isolated paths
+  assert_eq(config_path, expected_config, "stdpath config must exactly match checkout config root")
+  assert_eq(data_path, expected_data, "stdpath data must exactly match checkout .dev-data root")
+  assert_eq(state_path, expected_state, "stdpath state must exactly match checkout .dev-state root")
+  assert_eq(cache_path, expected_cache, "stdpath cache must exactly match checkout .dev-cache root")
 
-  -- Verify installed novim path is not part of stdpath
+  -- Verify installed novim path is not part of any stdpath
   assert_true(not config_path:find("%.local/share/novim"), "stdpath config must not point to installed novim")
   assert_true(not data_path:find("%.local/share/novim"), "stdpath data must not point to installed novim")
   assert_true(not state_path:find("%.local/share/novim"), "stdpath state must not point to installed novim")
+  assert_true(not cache_path:find("%.local/share/novim"), "stdpath cache must not point to installed novim")
+
+  -- Verify settings file path is derived from the isolated state directory
+  local settings = require("novim.settings")
+  local expected_settings_file = vim.fs.normalize(expected_state .. "/novim_settings.json")
+  assert_eq(vim.fs.normalize(settings.get_settings_file_path()), expected_settings_file, "settings file path must live under isolated state path")
 
   -- Verify custom user commands are registered
   local commands = vim.api.nvim_get_commands({})
@@ -476,9 +510,7 @@ function smoke_tests.test_smoke_git_diff_rendering_and_read_only_invariance()
   assert_eq(post_diff, initial_diff, "git diff output must be 100% byte-for-byte identical after workbench use")
 
   -- Non-git directory test: gracefully displays not a git repository message without crashing
-  local non_git_dir = vim.fn.tempname() .. "_smoke_non_git"
-  vim.fn.mkdir(non_git_dir, "p")
-  register_fixture(non_git_dir)
+  local non_git_dir = create_temp_fixture_dir("smoke_non_git")
   vim.cmd("cd " .. vim.fn.fnameescape(non_git_dir))
   workbench.open({ view = "diff" })
   local non_git_state = workbench.get_state()
@@ -496,9 +528,7 @@ function smoke_tests.test_smoke_git_diff_rendering_and_read_only_invariance()
   cleanup_dir(non_git_dir)
 
   -- Clean git repo test: displays working tree clean
-  local clean_repo = vim.fn.tempname() .. "_smoke_clean_git"
-  vim.fn.mkdir(clean_repo, "p")
-  register_fixture(clean_repo)
+  local clean_repo = create_temp_fixture_dir("smoke_clean_git")
   run_cmd("git -C " .. vim.fn.shellescape(clean_repo) .. " init -q")
   run_cmd("git -C " .. vim.fn.shellescape(clean_repo) .. " config user.email 'smoke@example.com'")
   run_cmd("git -C " .. vim.fn.shellescape(clean_repo) .. " config user.name 'Smoke'")
@@ -537,71 +567,88 @@ function smoke_tests.test_smoke_settings_persistence_dotfile_toggle_and_error_re
   local browser = require("novim.browser")
   local fixture = create_smoke_project_fixture()
 
-  -- Reset settings cache and verify clean default
-  settings.reset_cache()
-  settings.set("show_dotfiles", false)
-  assert_eq(settings.get("show_dotfiles"), false, "default show_dotfiles must be false")
-
-  -- Scan project tree with show_dotfiles = false
-  local tree, stats = browser.get_tree(fixture, false)
-  for _, item in ipairs(tree) do
-    assert_true(not item.is_dot, "dotfile must not be present when show_dotfiles = false: " .. item.name)
-    assert_true(not item.path:find("^%.") and not item.path:find("/%."), "nested dotfile must not be present: " .. item.path)
+  -- Use an isolated settings file in the run-specific temp root to prevent concurrency races
+  local settings_temp_dir = create_temp_fixture_dir("smoke_settings_state")
+  local test_settings_file = settings_temp_dir .. "/novim_settings.json"
+  local orig_get_path = settings.get_settings_file_path
+  settings.get_settings_file_path = function()
+    return test_settings_file
   end
-  assert_true(stats.dot_count > 0, "dot_count must report hidden dot entries (> 0)")
 
-  -- Toggle show_dotfiles to true
-  local success, err, effective = settings.toggle_dotfiles()
-  assert_true(success, "toggle_dotfiles must succeed")
-  assert_eq(effective, true, "effective show_dotfiles must be true")
-
-  -- Scan project tree with show_dotfiles = true
-  tree, stats = browser.get_tree(fixture, true)
-  local found_env = false
-  local found_vscode = false
-  local found_secret = false
-  for _, item in ipairs(tree) do
-    if item.name == ".env" then found_env = true end
-    if item.name == ".vscode" then found_vscode = true end
-    if item.name == ".secret_module" then found_secret = true end
+  local function restore_settings_path()
+    settings.get_settings_file_path = orig_get_path
   end
-  assert_true(found_env, ".env must be revealed when show_dotfiles = true")
-  assert_true(found_vscode, ".vscode must be revealed when show_dotfiles = true")
-  assert_true(found_secret, ".secret_module must be revealed when show_dotfiles = true")
 
-  -- Persistence check: reset in-memory cache and reload from disk
+  local ok, test_err = pcall(function()
+    -- Reset settings cache and verify clean default
+    settings.reset_cache()
+    settings.set("show_dotfiles", false)
+    assert_eq(settings.get("show_dotfiles"), false, "default show_dotfiles must be false")
+
+    -- Scan project tree with show_dotfiles = false
+    local tree, stats = browser.get_tree(fixture, false)
+    for _, item in ipairs(tree) do
+      assert_true(not item.is_dot, "dotfile must not be present when show_dotfiles = false: " .. item.name)
+      assert_true(not item.path:find("^%.") and not item.path:find("/%."), "nested dotfile must not be present: " .. item.path)
+    end
+    assert_true(stats.dot_count > 0, "dot_count must report hidden dot entries (> 0)")
+
+    -- Toggle show_dotfiles to true
+    local success, err, effective = settings.toggle_dotfiles()
+    assert_true(success, "toggle_dotfiles must succeed")
+    assert_eq(effective, true, "effective show_dotfiles must be true")
+
+    -- Scan project tree with show_dotfiles = true
+    tree, stats = browser.get_tree(fixture, true)
+    local found_env = false
+    local found_vscode = false
+    local found_secret = false
+    for _, item in ipairs(tree) do
+      if item.name == ".env" then found_env = true end
+      if item.name == ".vscode" then found_vscode = true end
+      if item.name == ".secret_module" then found_secret = true end
+    end
+    assert_true(found_env, ".env must be revealed when show_dotfiles = true")
+    assert_true(found_vscode, ".vscode must be revealed when show_dotfiles = true")
+    assert_true(found_secret, ".secret_module must be revealed when show_dotfiles = true")
+
+    -- Persistence check: reset in-memory cache and reload from disk
+    settings.reset_cache()
+    local reloaded = settings.load(true)
+    assert_eq(reloaded.show_dotfiles, true, "reloaded setting from persistent file must retain show_dotfiles = true")
+
+    -- Malformed settings file recovery
+    local sf = io.open(test_settings_file, "w")
+    if sf then
+      sf:write("{ malformed_json: true, unterminated ...")
+      sf:close()
+    end
+    settings.reset_cache()
+    local fallback = settings.load(true)
+    assert_eq(fallback.show_dotfiles, false, "malformed settings file must safely fallback to default show_dotfiles = false")
+
+    -- Write failure handling: create directory at settings file path
+    os.remove(test_settings_file)
+    vim.fn.mkdir(test_settings_file, "p")
+
+    settings.reset_cache()
+    local toggle_ok, save_err, eff = settings.toggle_dotfiles()
+    assert_true(toggle_ok == false, "toggle_dotfiles must return ok = false when write fails")
+    assert_true(save_err ~= nil, "error message must be returned on write failure")
+    assert_true(eff == false, "effective value must remain false")
+
+    -- Clean up the blocker directory
+    vim.fn.delete(test_settings_file, "rf")
+  end)
+
+  restore_settings_path()
   settings.reset_cache()
-  local reloaded = settings.load(true)
-  assert_eq(reloaded.show_dotfiles, true, "reloaded setting from persistent file must retain show_dotfiles = true")
-
-  -- Malformed settings file recovery
-  local settings_path = settings.get_settings_file_path()
-  local sf = io.open(settings_path, "w")
-  if sf then
-    sf:write("{ malformed_json: true, unterminated ...")
-    sf:close()
-  end
-  settings.reset_cache()
-  local fallback = settings.load(true)
-  assert_eq(fallback.show_dotfiles, false, "malformed settings file must safely fallback to default show_dotfiles = false")
-
-  -- Write failure handling: create directory at settings file path
-  os.remove(settings_path)
-  vim.fn.mkdir(settings_path, "p")
-
-  settings.reset_cache()
-  local ok, save_err, eff = settings.toggle_dotfiles()
-  assert_true(ok == false, "toggle_dotfiles must return ok = false when write fails")
-  assert_true(save_err ~= nil, "error message must be returned on write failure")
-  assert_true(eff == false, "effective value must remain false")
-
-  -- Clean up the blocker directory
-  vim.fn.delete(settings_path, "rf")
-
-  -- Reset settings back to false
-  settings.reset_cache()
-  settings.set("show_dotfiles", false)
+  cleanup_dir(settings_temp_dir)
   cleanup_dir(fixture)
+
+  if not ok then
+    error(test_err)
+  end
 end
 
 -- =========================================================================

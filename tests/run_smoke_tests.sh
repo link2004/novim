@@ -27,8 +27,12 @@ if [[ ! -x "$LAUNCHER" ]]; then
   exit 1
 fi
 
-# Track temporary directories for cleanup on exit
-CLEANUP_DIRS=()
+# Create a run-specific temporary fixture root (works cross-platform on macOS and Linux)
+RUN_TEMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/novim_smoke_run_XXXXXX")"
+export NOVIM_SMOKE_TEMP_ROOT="$RUN_TEMP_ROOT"
+export NOVIM_PROJECT_ROOT="$PROJECT_ROOT"
+
+CLEANUP_DIRS=("$RUN_TEMP_ROOT")
 cleanup() {
   for d in "${CLEANUP_DIRS[@]}"; do
     if [[ -d "$d" ]]; then
@@ -70,8 +74,8 @@ echo "  ✓ PASS: --help reports isolated configuration and runtime directories"
 echo ""
 echo "--- Step 2: Working Directory and Symlink Isolation ---"
 
-# 2.1 Invocation from external working directory
-EXTERNAL_TMP="$(mktemp -d)"
+# 2.1 Invocation from external working directory (CLI + real headless startup)
+EXTERNAL_TMP="$(mktemp -d "${TMPDIR:-/tmp}/novim_ext_cwd_XXXXXX")"
 CLEANUP_DIRS+=("$EXTERNAL_TMP")
 
 EXT_VERSION="$(cd "$EXTERNAL_TMP" && "$LAUNCHER" --version)"
@@ -79,10 +83,12 @@ if [[ "$EXT_VERSION" != *"novim-dev"* ]]; then
   echo "Error: Invocation from external directory failed." >&2
   exit 1
 fi
-echo "  ✓ PASS: Invocation from external working directory resolves repository root"
 
-# 2.2 Invocation via symlinked launcher
-SYMLINK_DIR="$(mktemp -d)"
+(cd "$EXTERNAL_TMP" && "$LAUNCHER" --headless -c "lua assert(vim.fs.normalize(vim.fn.stdpath('config')) == vim.fs.normalize('$PROJECT_ROOT/config/nvim'), 'external cwd config path mismatch') assert(vim.fs.normalize(vim.fn.stdpath('data')) == vim.fs.normalize('$PROJECT_ROOT/.dev-data/nvim'), 'external cwd data path mismatch')" -c "qall!")
+echo "  ✓ PASS: External working directory resolves repository root in CLI and headless startup"
+
+# 2.2 Invocation via symlinked launcher (CLI + real headless startup)
+SYMLINK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/novim_symlink_XXXXXX")"
 CLEANUP_DIRS+=("$SYMLINK_DIR")
 ln -s "$LAUNCHER" "$SYMLINK_DIR/novim-dev-symlink"
 
@@ -91,7 +97,9 @@ if [[ "$LINK_VERSION" != *"novim-dev"* ]]; then
   echo "Error: Invocation via symlink failed." >&2
   exit 1
 fi
-echo "  ✓ PASS: Invocation through symlink resolves real repository root"
+
+(cd "$EXTERNAL_TMP" && "$SYMLINK_DIR/novim-dev-symlink" --headless -c "lua assert(vim.fs.normalize(vim.fn.stdpath('config')) == vim.fs.normalize('$PROJECT_ROOT/config/nvim'), 'symlink config path mismatch')" -c "qall!")
+echo "  ✓ PASS: Symlinked launcher resolves real repository root in CLI and headless startup"
 
 # 2.3 Installed novim independence check
 if [[ -x "/Users/mert/.local/bin/novim" ]]; then
@@ -106,27 +114,29 @@ fi
 
 echo ""
 echo "--- Step 3: Headless Neovim Regression Smoke Suite ---"
-"$LAUNCHER" --headless -u "$PROJECT_ROOT/config/nvim/init.lua" -l "$PROJECT_ROOT/tests/test_smoke.lua"
-echo "  ✓ PASS: All headless regression smoke tests passed"
+# Note: uses normal launcher startup path (loads checkout config automatically, without -u)
+"$LAUNCHER" --headless -c "luafile $PROJECT_ROOT/tests/test_smoke.lua"
+echo "  ✓ PASS: All headless regression smoke tests passed under normal launcher startup"
 
 echo ""
 echo "--- Step 4: Post-Run Artifact and Cleanup Verification ---"
 
-# Verify no leftover test fixtures in /tmp matching smoke test patterns
+# Verify no leftover test fixtures in the run-specific temp root
 LEFTOVER_COUNT=0
-for leftover in /tmp/*_smoke_git_fixture* /tmp/*_smoke_project_fixture* /tmp/*_smoke_non_git* /tmp/*_smoke_clean_git*; do
-  if [[ -e "$leftover" ]]; then
-    echo "Warning: Detected uncleaned smoke fixture: $leftover" >&2
-    LEFTOVER_COUNT=$((LEFTOVER_COUNT + 1))
-    rm -rf "$leftover"
+if [[ -d "$RUN_TEMP_ROOT" ]]; then
+  shopt -s nullglob dotglob
+  LEFTOVER_ENTRIES=("$RUN_TEMP_ROOT"/*)
+  shopt -u nullglob dotglob
+  LEFTOVER_COUNT=${#LEFTOVER_ENTRIES[@]}
+  if [[ "$LEFTOVER_COUNT" -gt 0 ]]; then
+    echo "Error: Detected uncleaned smoke fixture(s) in $RUN_TEMP_ROOT:" >&2
+    for entry in "${LEFTOVER_ENTRIES[@]}"; do
+      echo "  - $entry" >&2
+    done
+    exit 1
   fi
-done
-
-if [[ "$LEFTOVER_COUNT" -gt 0 ]]; then
-  echo "Error: $LEFTOVER_COUNT test fixture(s) were not cleaned up." >&2
-  exit 1
 fi
-echo "  ✓ PASS: Zero fixture residue left in temporary directory"
+echo "  ✓ PASS: Zero fixture residue left in run temporary root ($RUN_TEMP_ROOT)"
 
 # Verify product source directories were not modified by test execution
 PRODUCT_MODS="$(git -C "$PROJECT_ROOT" status --porcelain=v1 -- bin/ config/)"
