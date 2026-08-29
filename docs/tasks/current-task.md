@@ -2,7 +2,7 @@
 
 Updated: 2026-08-29
 Task ID: `TASK-003`
-Status: `PLANNED`
+Status: `READY_FOR_REVIEW`
 Delivery policy: `LIGHTWEIGHT`
 Base branch: `main`
 Task branch: `task/TASK-003-project-browser-settings`
@@ -56,23 +56,23 @@ list, and diff context remain TASK-004 scope.
 
 ## Acceptance criteria
 
-- [ ] Launching `novim-dev` in a fixture project shows regular files and
+- [x] Launching `novim-dev` in a fixture project shows regular files and
       directories in the project browser without network access or plugin
       installation.
-- [ ] Dot-prefixed files and directories, including nested dot-folders, are
+- [x] Dot-prefixed files and directories, including nested dot-folders, are
       hidden by default while non-dot siblings remain visible.
-- [ ] The settings surface is visibly reachable from the workbench and
+- [x] The settings surface is visibly reachable from the workbench and
       exposes a dot-folder visibility toggle with an unambiguous state.
-- [ ] Enabling the toggle reveals dot-prefixed files and directories at every
+- [x] Enabling the toggle reveals dot-prefixed files and directories at every
       relevant tree level; disabling it hides them again without losing normal
       entries.
-- [ ] The visibility choice persists across a fresh `novim-dev` launch using
+- [x] The visibility choice persists across a fresh `novim-dev` launch using
       the checkout's isolated state path.
-- [ ] Missing or malformed local settings fall back safely to hidden-by-default
+- [x] Missing or malformed local settings fall back safely to hidden-by-default
       behavior without crashing or writing outside the isolated runtime.
-- [ ] Existing TASK-002 diff inspection, native mouse divider behavior, and
+- [x] Existing TASK-002 diff inspection, native mouse divider behavior, and
       read-only Git invariance remain intact.
-- [ ] No Git mutation action, network call, plugin-manager dependency, or
+- [x] No Git mutation action, network call, plugin-manager dependency, or
       installed-release modification is introduced.
 
 ## Decision guardrails
@@ -125,9 +125,38 @@ list, and diff context remain TASK-004 scope.
 
 ## Implementation handoff
 
-Status: `PLANNED`
-Candidate commit: `NOT_STARTED`
+Status: `READY_FOR_REVIEW`
+Candidate commit: `HEAD (handoff commit)`
 
-The implementer must work only on `task/TASK-003-project-browser-settings`,
-preserve unrelated changes, and stop at `READY_FOR_REVIEW` with a local
-handoff commit and complete acceptance evidence.
+### Summary of changes
+
+- Added `config/nvim/lua/novim/settings.lua`: robust local persistence layer storing settings (such as `show_dotfiles`) under isolated runtime state (`stdpath("state")/novim_settings.json`). Missing, unreadable, or malformed settings fall back safely to default `{ show_dotfiles = false }` without crashing or throwing errors.
+- Added `config/nvim/lua/novim/browser.lua`: read-only project file browser module scanning regular directories and files recursively using native `vim.uv.fs_scandir`. Hides dot-prefixed items at every tree level by default, and reveals them when `show_dotfiles` is enabled. Provides formatted read-only text file previews, directory summaries, and binary file detection.
+- Added `config/nvim/lua/novim/settings_ui.lua`: centered interactive settings modal reachable via `s` or `:Settings`, exposing unambiguous toggle state (`[ ] OFF` / `[X] ON`), instant save, and workbench refresh notification.
+- Updated `config/nvim/lua/novim/workbench.lua`: integrated two-pane layout with view modes (`files` and `diff`), active tab header, keyboard navigation (`1`/`2`/`s`/`r`/`j`/`k`/`Tab`/`q`), left click selection, native mouse divider resizing, and diagnostic `get_state()`.
+- Updated `config/nvim/init.lua`: launches `workbench.open({ view = "files" })` on `VimEnter` by default; exposes `:ProjectBrowser`, `:Files`, `:DiffWorkbench`, `:Workbench`, and `:Settings` commands; maps `<C-e>` / `<D-e>` for Project Browser and `<C-d>` / `<D-d>` for Diff Workbench.
+- Updated `tests/test_workbench.lua`: expanded test suite from 6 to 13 unit and integration tests covering default hidden dotfiles, nested dot-folders, settings toggle, persistence across fresh process launches, malformed fallback, view switching, file previews, and status/diff byte invariance.
+
+### Files changed
+
+- `config/nvim/lua/novim/settings.lua` (new)
+- `config/nvim/lua/novim/browser.lua` (new)
+- `config/nvim/lua/novim/settings_ui.lua` (new)
+- `config/nvim/lua/novim/workbench.lua` (modified)
+- `config/nvim/init.lua` (modified)
+- `tests/test_workbench.lua` (modified)
+- `docs/tasks/current-task.md` (modified)
+
+### Validation commands and results
+
+- `./tests/run_tests.sh`: 13/13 passed (`test_git_module_special_paths`, `test_workbench_close_editor_state`, `test_left_pane_mouse_selection_no_e21`, `test_mouse_divider_drag_and_status_invariance`, `test_non_git_directory`, `test_clean_repository`, `test_project_browser_default_hidden_dotfiles`, `test_settings_toggle_reveals_and_hides_dotfiles`, `test_settings_persistence_across_launches`, `test_settings_missing_or_malformed_fallback`, `test_view_switching_and_header_tabs`, `test_project_browser_preview`, `test_project_browser_read_only_invariance`).
+- `git diff --check`: passed cleanly.
+- `bash -n bin/novim-dev tests/run_tests.sh`: passed cleanly.
+- `./bin/novim-dev --version`: `novim-dev 0.1.7-dev (custom checkout)` / Neovim `v0.12.5`.
+- `/Users/mert/.local/bin/novim --version`: `novim 0.1.7` (unchanged).
+- End-to-end multi-process verification: verified fresh process launch restores `show_dotfiles = true` from isolated `$XDG_STATE_HOME`, verified absent/malformed JSON falls back safely to `false`, and verified byte-for-byte Git status and diff invariance before and after interaction.
+- Interactive PTY verification: verified startup in Project Browser with `.env` hidden, opening settings modal via `s`, toggling to `ON` via `t`/`Space`, closing settings via `q`, switching to `diff` via `2`, and switching back to `files` via `1`.
+
+### Residual risks or known gaps
+
+- None. TASK-003 is self-contained with zero new external dependencies, no network calls, and strict read-only filesystem inspection.
