@@ -50,11 +50,13 @@ Last merged pull request: `https://github.com/medonmez/novim-custom/pull/4`
 
 ## Active blockers
 
-- No active blocker. TASK-005 is planned on the isolated branch
-  `task/TASK-005-regression-smoke-tests` from the verified TASK-004 merge
-  baseline.
+- No active blocker. TASK-005 received local verdict `APPROVED` at candidate
+  `965b25cab4195f8b12fb7880971741c48e708809` on the isolated task branch and
+  is ready for lightweight PR delivery. No hosted, production, recovery, or
+  customer-acceptance claim is made.
 
 ## Next orchestration action
 
-Implement TASK-005 on `task/TASK-005-regression-smoke-tests`, preserving the
-accepted TASK-002 through TASK-004 read-only and isolated-runtime contracts.
+Push `task/TASK-005-regression-smoke-tests`, open or reuse its single PR
+targeting `main`, merge it if no explicit required check blocks it, then
+verify `origin/main` before reconciling TASK-005 as accepted.

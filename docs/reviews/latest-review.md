@@ -1,27 +1,26 @@
 # Latest Review
 
 Updated: 2026-08-29
-Task ID: `TASK-004`
+Task ID: `TASK-005`
 Local verdict: `APPROVED`
 Delivery policy: `LIGHTWEIGHT`
-Baseline: `6a9be23522c43110dd4c4053f67ab22c8586d4b9` (`origin/main`)
-Candidate: `2449369d35be78228116b98ef539684f25ae9de2`
-Task branch: `task/TASK-004-source-navigation`
-Pull request: `https://github.com/medonmez/novim-custom/pull/4`
+Baseline: `f01b7232f4dd06f5d4ccf4ad2d7fa80c5509d2ab` (`origin/main`)
+Candidate: `965b25cab4195f8b12fb7880971741c48e708809`
+Task branch: `task/TASK-005-regression-smoke-tests`
+Pull request: `NOT_OPEN`
 Remote checks: `OPTIONAL / NOT_RUN`
-Merge status: `MERGED`
-Target branch contains change: `YES` (`origin/main`)
-Merge commit: `cdb9140947f0fe4beb9a4748e599e8f769fb6aec`
+Merge status: `NOT_DELIVERED`
+Target branch contains change: `NO`
 
 ## Review result
 
-The real branch delta was inspected against the recorded TASK-003 merge
-baseline. TASK-004 adds local source-file opening in the existing right pane,
-preserves the read-only directory and Git preview paths, restores the preview
-buffer when returning from an editor buffer, and makes Files/Git Diff
-navigation available from both workbench panes. The change remains within the
-recorded scope and preserves the isolated launcher, dotfile setting, read-only
-Git interface, native divider behavior, and installed-release boundary.
+The revised candidate was inspected against the actual `origin/main` merge
+baseline and the previous `CHANGES_REQUESTED` findings were rechecked. The
+smoke runner now uses the launcher’s normal config-loading path, verifies exact
+checkout and isolated runtime paths, exercises headless startup from an
+external cwd and symlinked launcher, owns a run-specific temporary root, and
+checks cleanup before the shell trap removes that root. Settings smoke state
+is isolated per run, eliminating the previously observed shared-state race.
 
 No correctness, regression, security, privacy, data-integrity, public-contract,
 or scope issue remains for this local review.
@@ -34,40 +33,52 @@ None.
 
 | Criterion | Result | Evidence |
 |---|---|---|
-| Regular visible files open in the normal editor | PASS | `workbench.lua:472-514` implements `open_file`; `./tests/run_tests.sh` passed `test_open_regular_file_in_editor`, including regular buffer options, right-window focus, left-pane preservation, and editable content. |
-| Directories remain read-only inspection | PASS | `workbench.lua:481-485` rejects directory opening and re-renders the preview; `test_directory_selection_preserves_inspection_no_file_open` passed with `buftype=nofile`, `readonly=true`, and `modifiable=false`. |
-| Files/Git Diff navigation and active tabs | PASS | `set_view`, `toggle_view`, header click handling, pane keymaps, commands, and global shortcuts were inspected; `test_view_switching_and_active_tab_rendering` and existing header-switch tests passed. |
-| Changed-file diff and Files return preserve state | PASS | Diff rendering continues through `git.get_file_diff(file, state.repo_root)`; `test_changed_file_diff_rendering_and_return_to_files` passed with unified `HEAD` diff output and preserved root/setting state. |
-| Dotfile filtering and persistence remain intact | PASS | Existing TASK-003 hidden/revealed, persistence, malformed-settings, and write-failure tests all passed in the 21-test run. |
-| TASK-002 read-only Git, untracked diff, mouse, divider, and minimum widths remain intact | PASS | Existing regression tests for special paths, untracked/changed diffs, mouse selection, divider bounds, and byte-for-byte Git invariance all passed. |
-| No Git mutation, network call, plugin dependency, or installed-release change | PASS | Product diff adds no Git-write or network path and no dependency; changed-file/scope inspection passed, `bin/novim-dev` and installed `novim` version checks passed, and the exact fixture Git status/diff invariance test passed. |
+| Documented local smoke command and nonzero failure path | PASS | `tests/run_smoke_tests.sh` and `tests/run_tests.sh --smoke` run the headless suite through `novim-dev`; shell `set -e`, Neovim exit status, fixture deletion checks, and run-root residue checks propagate failures. |
+| Checkout config, isolated paths, and installed-release boundary | PASS | Exact `config/nvim`, `.dev-data/nvim`, `.dev-state/nvim`, `.dev-cache/nvim`, and settings-file paths are asserted; external cwd and symlinked launcher probes pass; installed `/Users/mert/.local/bin/novim` remains `0.1.7`. |
+| Workbench layout, navigation, settings, and unsaved buffers | PASS | Smoke suite passed two-pane layout, minimum widths, Files/Git Diff switching, source editing handoff, directory read-only preview, settings behavior, close flow, and unsaved buffer preservation. |
+| Git rendering and byte-for-byte invariance | PASS | Smoke fixture covers clean, modified, deleted, staged rename, untracked text/binary, non-Git, and `HEAD`-relative diff behavior; exact before/after status and `git diff HEAD` bytes remain unchanged. |
+| Dotfile, persistence, malformed-settings, and write-failure contracts | PASS | Smoke and existing integration suites pass hidden/revealed dotfiles, persistence roundtrip, malformed fallback, and write-failure handling; smoke settings use a run-specific temporary file for concurrency isolation. |
+| Offline, deterministic, cleanup, and dependency boundary | PASS | No network or new dependency was introduced; all fixtures are under the run-owned temp root, deletion return codes are checked, post-run residue is verified, and concurrent runners pass. |
+| Existing runner, syntax, versions, and diff check | PASS | `./tests/run_tests.sh`, `./tests/run_tests.sh --smoke`, `bash -n bin/novim-dev tests/run_tests.sh tests/run_smoke_tests.sh`, both version checks, and `git diff --check` pass. |
 
 ## Validation performed
 
-- `./tests/run_tests.sh`: passed, `21 total, 21 passed, 0 failed`.
+- Inspected `AGENTS.md`, `docs/repository.md`, `project-state.md`, the current
+  task, backlog, previous review, architecture/product/ADR records, remotes,
+  branch ancestry, candidate commit, and complete candidate diff.
+- Confirmed the checked-out branch is
+  `task/TASK-005-regression-smoke-tests`, clean before this review, with
+  candidate `965b25cab4195f8b12fb7880971741c48e708809` three commits above
+  `origin/main` at `f01b7232f4dd06f5d4ccf4ad2d7fa80c5509d2ab`.
+- `./tests/run_smoke_tests.sh`: passed, 6/6, including normal launcher
+  startup, external cwd and symlink resolution, and zero entries in the
+  run-specific temp root.
+- `./tests/run_tests.sh`: passed, 21/21 integration tests and 6/6 smoke tests.
+- `./tests/run_tests.sh --smoke`: passed, 6/6.
+- Concurrent smoke/full-runner execution: passed with both processes completing
+  successfully and no settings race.
+- `bash -n bin/novim-dev tests/run_tests.sh tests/run_smoke_tests.sh`: passed.
 - `./bin/novim-dev --version`: passed, `0.1.7-dev` / Neovim `v0.12.5`.
-- `/Users/mert/.local/bin/novim --version`: passed, installed `novim 0.1.7`.
-- `bash -n bin/novim-dev tests/run_tests.sh`: passed.
-- `git diff --check 6a9be23522c43110dd4c4053f67ab22c8586d4b9..HEAD`: passed.
-- Direct headless probe from an existing file session opened a source file,
-  added an unsaved in-memory edit, closed the workbench tab, and verified the
-  original tab remained plus the source buffer retained its content and
-  `modified=true` state.
-- Candidate diff, branch ancestry, remotes, and working-tree status were
-  inspected. The task branch is isolated and clean before this review record;
-  no unrelated product or untracked files were present.
+- `/Users/mert/.local/bin/novim --version`: passed, installed `0.1.7`.
+- `git diff --check origin/main...HEAD`: passed.
+- The checked-out macOS temp root was exercised under `/var/folders/.../T`,
+  confirming cleanup uses the actual run-owned platform path rather than a
+  hard-coded `/tmp` scan.
+- Product source and Git status remained unchanged by test execution apart from
+  expected ignored `.dev-state/` runtime artifacts.
 
 Evidence is local review evidence only; no hosted, production, recovery, or
 customer-acceptance claim is made.
 
 ## Delivery decision
 
-`ACCEPTED` after lightweight PR #4 merge. Review and validation evidence is
-local, with remote branch containment verified separately; no hosted,
-production, recovery, or customer-acceptance claim is made.
+`APPROVED` for lightweight PR delivery. Push
+`task/TASK-005-regression-smoke-tests`, open or reuse its single PR targeting
+`main`, and merge promptly if it is mergeable and no explicit required check
+blocks it.
 
 ## Next action
 
-TASK-004 is complete. TASK-005 is now the single actionable planned task on
-`task/TASK-005-regression-smoke-tests` from the verified `origin/main` merge
-commit `cdb9140947f0fe4beb9a4748e599e8f769fb6aec`.
+Deliver the reviewed candidate through the task branch PR, verify the merged
+result is contained in `origin/main`, then reconcile TASK-005 as `ACCEPTED` and
+issue the next single actionable task.
