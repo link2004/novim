@@ -31,13 +31,15 @@ The repository is a direct clone of upstream novim at tag `v0.1.7`.
 
 ### Current derivative workbench baseline
 
-- `novim.workbench` currently opens two windows and calls the synchronous,
-  recursive `browser.get_tree` scan during startup and every refresh. The
-  current default scan can descend up to 15 levels, which makes launching
-  from a large directory slow or appear blocked.
-- The project browser currently renders a flattened recursive tree. Folder
-  rows are selectable, but expansion state is not represented as a lazy tree
-  state.
+- `novim.workbench` opens two windows and reads only the immediate entries of
+  the root directory at startup and on every refresh through
+  `browser.get_immediate_entries`; startup performs no recursive traversal, so
+  launching from a large directory stays responsive.
+- The project browser renders a lazy visible list. Double-clicking a folder
+  expands one level at a time (immediate children only), double-clicking an
+  expanded folder collapses it and removes its descendants, and expansion
+  state lives in workbench memory for the current session only. Symlink loops
+  are refused by comparing real paths against the folder's own ancestors.
 - Settings currently persist only dot-folder visibility. The settings modal
   has direct `Esc` and `q` mappings but no theme controls or embedded key-help
   section.

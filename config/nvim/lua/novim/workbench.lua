@@ -5,6 +5,7 @@ local git = require("novim.git")
 local browser = require("novim.browser")
 local settings = require("novim.settings")
 local settings_ui = require("novim.settings_ui")
+local uv = vim.uv or vim.loop
 
 local M = {}
 
@@ -21,6 +22,7 @@ local state = {
   project_stats = { file_count = 0, dir_count = 0, dot_count = 0 },
   selected_project_index = 1,
   line_to_project_index = {},
+  expanded_dirs = {},
 
   -- Git Diff State
   is_git = false,
@@ -39,6 +41,25 @@ local state = {
   win_right = nil,
   ns_id = vim.api.nvim_create_namespace("novim_workbench"),
 }
+
+--- Create a scratch buffer with a fixed display name.
+--- Reopening the workbench in the same session would otherwise fail with
+--- E95 because a leftover buffer from the previous session holds the name.
+---@param name string
+---@return integer buf
+local function fresh_buffer(name)
+  local buf = vim.api.nvim_create_buf(false, true)
+  local ok = pcall(vim.api.nvim_buf_set_name, buf, name)
+  if not ok then
+    for _, existing in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_get_name(existing) == name then
+        pcall(vim.api.nvim_buf_delete, existing, { force = true })
+      end
+    end
+    pcall(vim.api.nvim_buf_set_name, buf, name)
+  end
+  return buf
+end
 
 -- Ensure highlights are set up
 local function setup_highlights()
@@ -332,8 +353,7 @@ end
 --- Render the right pane (Project File Preview or Git Diff Preview)
 function M.render_right_pane()
   if not state.buf_right or not vim.api.nvim_buf_is_valid(state.buf_right) then
-    state.buf_right = vim.api.nvim_create_buf(false, true)
-    pcall(vim.api.nvim_buf_set_name, state.buf_right, "[Workbench - Preview]")
+    state.buf_right = fresh_buffer("[Workbench - Preview]")
     vim.bo[state.buf_right].buftype = "nofile"
     vim.bo[state.buf_right].bufhidden = "hide"
     vim.bo[state.buf_right].swapfile = false
@@ -552,13 +572,124 @@ function M.open_settings()
   end)
 end
 
+--- Rebuild the visible project list from expansion state.
+--- Scans only the root directory plus currently expanded folders, so the
+--- workbench never performs a recursive traversal of the whole tree.
+---@param show_dots boolean
+local function rebuild_project_view(show_dots)
+  local visible = {}
+  local seen_dirs = {}
+
+  local function build(entries)
+    for _, entry in ipairs(entries) do
+      table.insert(visible, entry)
+      if entry.is_dir then
+        seen_dirs[entry.path] = true
+        if state.expanded_dirs[entry.path] then
+          build(browser.get_immediate_entries(entry.full_path, entry.path, entry.depth + 1, show_dots))
+        end
+      end
+    end
+  end
+
+  build(browser.get_immediate_entries(state.root_dir, "", 0, show_dots))
+
+  -- Expansion state only survives for folders that still exist
+  for path in pairs(state.expanded_dirs) do
+    if not seen_dirs[path] then
+      state.expanded_dirs[path] = nil
+    end
+  end
+
+  -- Stats describe the currently visible list
+  local stats = { file_count = 0, dir_count = 0, dot_count = 0 }
+  for _, entry in ipairs(visible) do
+    if entry.is_dir then
+      stats.dir_count = stats.dir_count + 1
+    else
+      stats.file_count = stats.file_count + 1
+    end
+    if entry.is_dot then
+      stats.dot_count = stats.dot_count + 1
+    end
+  end
+
+  state.project_files = visible
+  state.project_stats = stats
+end
+
+--- Detect whether expanding a directory would traverse a symlink cycle.
+--- True when the directory's real path matches one of its own ancestors
+--- (including the workbench root), which is only possible through a loop.
+---@param entry ProjectEntry
+---@return boolean
+local function is_symlink_cycle(entry)
+  local target_real = uv.fs_realpath(entry.full_path)
+  if not target_real then
+    return true
+  end
+
+  local root_real = uv.fs_realpath(state.root_dir) or state.root_dir
+  local parent = entry.full_path
+  while true do
+    parent = parent:match("^(.*)/.+$")
+    if not parent or parent == "" then
+      return false
+    end
+    local parent_real = uv.fs_realpath(parent)
+    if parent_real == target_real then
+      return true
+    end
+    if parent == state.root_dir or parent_real == root_real then
+      return false
+    end
+  end
+end
+
+--- Expand or collapse a directory row (double-click behavior).
+--- Expansion scans and reveals only the folder's immediate children; collapse
+--- removes the folder and all descendants from the visible list. Files on
+--- disk are never modified.
+---@param entry ProjectEntry
+function M.toggle_dir_expansion(entry)
+  if not entry or not entry.is_dir then
+    return
+  end
+
+  if state.expanded_dirs[entry.path] then
+    -- Collapse: drop the folder and every descendant from expansion state
+    local prefix = entry.path .. "/"
+    state.expanded_dirs[entry.path] = nil
+    for path in pairs(state.expanded_dirs) do
+      if path:sub(1, #prefix) == prefix then
+        state.expanded_dirs[path] = nil
+      end
+    end
+  else
+    -- Refuse expansion through a symlink loop
+    if is_symlink_cycle(entry) then
+      return
+    end
+    state.expanded_dirs[entry.path] = true
+  end
+
+  -- Rebuild the visible list; only expanded folders are rescanned
+  rebuild_project_view(settings.get("show_dotfiles"))
+
+  if state.selected_project_index > #state.project_files then
+    state.selected_project_index = math.max(1, #state.project_files)
+  end
+
+  M.render_left_pane()
+  M.render_right_pane()
+end
+
 --- Refresh workbench data (both Project Files and Git Diff)
 function M.refresh()
   state.root_dir = vim.fn.getcwd()
 
-  -- 1. Refresh Project Browser
-  local show_dots = settings.get("show_dotfiles")
-  state.project_files, state.project_stats = browser.get_tree(state.root_dir, show_dots)
+  -- 1. Refresh Project Browser (lazy: root entries plus expanded folders only)
+  rebuild_project_view(settings.get("show_dotfiles"))
   if state.selected_project_index > #state.project_files then
     state.selected_project_index = math.max(1, #state.project_files)
   end
@@ -834,12 +965,9 @@ function M.open(opts)
     state.tab_id = vim.api.nvim_get_current_tabpage()
   end
 
-  -- Create buffers
-  state.buf_left = vim.api.nvim_create_buf(false, true)
-  state.buf_right = vim.api.nvim_create_buf(false, true)
-
-  vim.api.nvim_buf_set_name(state.buf_left, "[Workbench - Navigation]")
-  vim.api.nvim_buf_set_name(state.buf_right, "[Workbench - Preview]")
+  -- Create buffers (safe to reopen within the same session)
+  state.buf_left = fresh_buffer("[Workbench - Navigation]")
+  state.buf_right = fresh_buffer("[Workbench - Preview]")
 
   for _, buf in ipairs({ state.buf_left, state.buf_right }) do
     vim.bo[buf].buftype = "nofile"
@@ -994,11 +1122,10 @@ function M.open(opts)
         if p_idx then
           state.selected_project_index = p_idx
           local entry = state.project_files[p_idx]
-          if entry and not entry.is_dir then
+          if entry and entry.is_dir then
+            M.toggle_dir_expansion(entry)
+          elseif entry then
             M.open_file(entry)
-          else
-            M.render_left_pane()
-            M.render_right_pane()
           end
         end
       end
@@ -1101,6 +1228,9 @@ function M.open(opts)
   vim.api.nvim_set_current_win(state.win_left)
   state.is_open = true
 
+  -- A new workbench launch always starts collapsed at the root
+  state.expanded_dirs = {}
+
   -- Populate data
   M.refresh()
 end
@@ -1126,6 +1256,7 @@ function M.get_state()
     project_files = state.project_files,
     stats = state.stats,
     project_stats = state.project_stats,
+    expanded_dirs = state.expanded_dirs,
     selected_index = state.selected_index,
     selected_project_index = state.selected_project_index,
     active_file = active_file,

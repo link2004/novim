@@ -585,31 +585,38 @@ function smoke_tests.test_smoke_settings_persistence_dotfile_toggle_and_error_re
     settings.set("show_dotfiles", false)
     assert_eq(settings.get("show_dotfiles"), false, "default show_dotfiles must be false")
 
-    -- Scan project tree with show_dotfiles = false
-    local tree, stats = browser.get_tree(fixture, false)
-    for _, item in ipairs(tree) do
+    -- Scan root entries with show_dotfiles = false (lazy: root level only)
+    local root_entries = browser.get_immediate_entries(fixture, "", 0, false)
+    for _, item in ipairs(root_entries) do
       assert_true(not item.is_dot, "dotfile must not be present when show_dotfiles = false: " .. item.name)
       assert_true(not item.path:find("^%.") and not item.path:find("/%."), "nested dotfile must not be present: " .. item.path)
     end
-    assert_true(stats.dot_count > 0, "dot_count must report hidden dot entries (> 0)")
 
     -- Toggle show_dotfiles to true
     local success, err, effective = settings.toggle_dotfiles()
     assert_true(success, "toggle_dotfiles must succeed")
     assert_eq(effective, true, "effective show_dotfiles must be true")
 
-    -- Scan project tree with show_dotfiles = true
-    tree, stats = browser.get_tree(fixture, true)
+    -- Scan root entries with show_dotfiles = true
+    root_entries = browser.get_immediate_entries(fixture, "", 0, true)
     local found_env = false
     local found_vscode = false
-    local found_secret = false
-    for _, item in ipairs(tree) do
+    local visible_dot_count = 0
+    for _, item in ipairs(root_entries) do
       if item.name == ".env" then found_env = true end
       if item.name == ".vscode" then found_vscode = true end
-      if item.name == ".secret_module" then found_secret = true end
+      if item.is_dot then visible_dot_count = visible_dot_count + 1 end
     end
     assert_true(found_env, ".env must be revealed when show_dotfiles = true")
     assert_true(found_vscode, ".vscode must be revealed when show_dotfiles = true")
+    assert_true(visible_dot_count > 0, "revealed dot entries must be visible at root")
+
+    -- Nested dot-folder requires scanning its parent directory (lazy boundary)
+    local src_children = browser.get_immediate_entries(fixture .. "/src", "src", 1, true)
+    local found_secret = false
+    for _, item in ipairs(src_children) do
+      if item.name == ".secret_module" then found_secret = true end
+    end
     assert_true(found_secret, ".secret_module must be revealed when show_dotfiles = true")
 
     -- Persistence check: reset in-memory cache and reload from disk

@@ -1,7 +1,7 @@
 # Current Task
 
 Task ID: `TASK-007`
-Status: `PLANNED`
+Status: `READY_FOR_REVIEW`
 Delivery policy: `LIGHTWEIGHT`
 Base branch: `main`
 Task branch: `task/TASK-007-lazy-project-browser`
@@ -53,24 +53,24 @@ a folder is opened.
 
 ## Acceptance criteria
 
-- [ ] Initial Files view lists only immediate visible entries of the current
+- [x] Initial Files view lists only immediate visible entries of the current
       root; no descendant file or directory is loaded or rendered before an
       expansion action.
-- [ ] A folder double-click expands it, scans only its immediate children,
+- [x] A folder double-click expands it, scans only its immediate children,
       and renders those children with correct indentation and directory/file
       ordering.
-- [ ] A second double-click collapses that folder and removes all descendants
+- [x] A second double-click collapses that folder and removes all descendants
       from the visible list without changing files on disk.
-- [ ] A nested folder remains collapsed after its parent expands and can be
+- [x] A nested folder remains collapsed after its parent expands and can be
       expanded independently by double-click.
-- [ ] Dot-prefixed entries remain hidden or visible according to the existing
+- [x] Dot-prefixed entries remain hidden or visible according to the existing
       persisted setting at root and nested levels.
-- [ ] Refresh preserves valid in-session expansion state, while a new
+- [x] Refresh preserves valid in-session expansion state, while a new
       workbench launch starts collapsed at the root.
-- [ ] Opening from a large/deep fixture remains responsive because startup
+- [x] Opening from a large/deep fixture remains responsive because startup
       performs no recursive browser traversal; the test suite observes the
       lazy boundary directly rather than relying only on a wall-clock budget.
-- [ ] Existing source preview/editing, read-only Git, isolated runtime,
+- [x] Existing source preview/editing, read-only Git, isolated runtime,
       installed-release, and no-default-network contracts remain intact.
 
 ## Decision guardrails
@@ -117,8 +117,104 @@ a folder is opened.
 
 ## Implementation handoff
 
-Status: `PLANNED`
+Status: `READY_FOR_REVIEW`
 
-Implement on `task/TASK-007-lazy-project-browser`, then stop at a local
-handoff for orchestrator review. Do not push, open, or merge a PR as the
-implementer.
+### Change summary
+
+- `config/nvim/lua/novim/browser.lua`: replaced the recursive `get_tree` walk
+  (depth limit 15) with `get_immediate_entries(dir_path, rel_prefix, depth,
+  show_dotfiles)`, which scans and sorts only the immediate visible entries of
+  one directory (directories before files, case-insensitive). Dotfile
+  filtering applies at every level; link/unknown types still resolve through
+  `fs_stat`.
+- `config/nvim/lua/novim/workbench.lua`: added session-only `expanded_dirs`
+  state, `rebuild_project_view` (rebuilds the visible list from root entries
+  plus expanded folders only), `toggle_dir_expansion` (expand on folder
+  double-click; a second double-click collapses and removes all descendants),
+  and an `is_symlink_cycle` guard that refuses expansion when a directory's
+  real path appears among its own ancestors. `refresh()` and settings changes
+  reuse the rebuild path, so in-session expansion survives refresh; `M.open`
+  resets expansion state so a new launch starts collapsed. Stats now describe
+  the currently visible list (`dot_count` counts visible dot entries). The
+  left-pane `<2-LeftMouse>` mapping toggles folders and opens files as before.
+- Defect fix required by the "new launch starts collapsed" criterion: the
+  workbench previously failed with `E95: Buffer with this name already
+  exists` when reopened within the same Neovim session. `fresh_buffer()` now
+  removes a leftover `[Workbench - Navigation]`/`[Workbench - Preview]`
+  scratch buffer before naming a new one (used by `M.open` and
+  `render_right_pane`).
+- Tests: rewrote `test_project_browser_default_hidden_dotfiles` and
+  `test_settings_toggle_reveals_and_hides_dotfiles` for the lazy model and
+  added five TASK-007 tests covering root-only initial state, expand/collapse
+  with disk invariance, nested independent expansion, refresh preservation
+  plus new-launch reset, the structural large-fixture lazy boundary, and
+  symlink-cycle refusal. The project fixture gained `src/nested/deep.lua`.
+- `tests/test_smoke.lua`: `browser.get_tree` usage replaced with
+  `get_immediate_entries`; `dot_count` assertions follow the new
+  visible-entry semantics.
+- `docs/architecture.md`: the workbench baseline section now describes the
+  lazy root-only scan, session-only expansion, and symlink-loop refusal.
+
+### Files changed
+
+- `config/nvim/lua/novim/browser.lua`
+- `config/nvim/lua/novim/workbench.lua`
+- `tests/test_workbench.lua`
+- `tests/test_smoke.lua`
+- `docs/architecture.md`
+- `docs/tasks/current-task.md`
+- `docs/project.json`
+
+### Validation
+
+- `bin/novim-dev --headless -c "luafile tests/test_workbench.lua"`: 27/27 PASS
+  (22 existing tests updated where they scanned recursively, 5 added).
+- `./tests/run_tests.sh`: 27/27 integration tests, full offline package
+  suite, and 6/6 smoke tests PASS. The smoke runner's product-source
+  invariance check compares tracked `bin/` and `config/` content against
+  `HEAD`, so the full suite is re-run at the handoff commit for the final
+  green run.
+- `bash -n` on `bin/novim-dev`, `bin/novim-dev-package`,
+  `tests/run_tests.sh`, `tests/run_smoke_tests.sh`, and
+  `tests/run_package_tests.sh`: PASS.
+- `./bin/novim-dev --version` reports `0.1.7-dev` on Neovim `v0.12.5`; the
+  installed `novim --version` reports `0.1.7` unchanged: PASS.
+- `python3 -m json.tool docs/project.json`: PASS. `git diff --check`: PASS.
+
+### Acceptance evidence
+
+- Root-only initial state: `test_lazy_root_only_initial_state` asserts exactly
+  4 visible root entries at depth 0, no expanded folders, and no descendant
+  text rendered. `test_large_fixture_startup_stays_lazy` observes the lazy
+  boundary structurally on a 12-branch/4-level fixture: startup lists 12 root
+  entries, expanding one branch reveals exactly its 9 immediate children, and
+  deeper descendants stay unloaded (no wall-clock budget involved).
+- Expand/collapse: `test_folder_double_click_expand_and_collapse` proves
+  depth-1 children with correct directories-first ordering, collapse
+  restoring the root-only list, and `filereadable`/`isdirectory` disk
+  invariance.
+- Nested independence: `test_nested_folder_expands_independently` proves a
+  nested folder stays collapsed after the parent expands, expands
+  independently to depth 2, and disappears when the parent collapses.
+- Dotfile setting: root- and nested-level filtering is asserted in
+  `test_project_browser_default_hidden_dotfiles`,
+  `test_settings_toggle_reveals_and_hides_dotfiles`, and the smoke suite.
+- Refresh vs new launch: `test_refresh_preserves_expansion_new_launch_resets`.
+- Preserved contracts: byte-for-byte read-only Git invariance, source
+  preview/editing handoff with unsaved-buffer preservation, isolated runtime
+  paths, installed-release independence, and no-default-network checks all
+  pass in the existing suites.
+
+### Residual risks and known gaps
+
+- `project_stats` now describes the visible list only; recursive totals are
+  intentionally no longer computed at startup.
+- Expanding the same real directory through two different symlink aliases is
+  allowed (aliasing is not a cycle); true loops are refused by the ancestor
+  real-path check.
+- Expansion rebuild rescans expanded folders on each toggle/refresh; cost is
+  bounded by the visible tree, not the whole project.
+
+### Candidate commit
+
+Candidate: HEAD (handoff commit) on `task/TASK-007-lazy-project-browser`.
