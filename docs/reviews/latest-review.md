@@ -7,10 +7,11 @@ Delivery policy: `LIGHTWEIGHT`
 Baseline: `f01b7232f4dd06f5d4ccf4ad2d7fa80c5509d2ab` (`origin/main`)
 Candidate: `965b25cab4195f8b12fb7880971741c48e708809`
 Task branch: `task/TASK-005-regression-smoke-tests`
-Pull request: `NOT_OPEN`
+Pull request: `https://github.com/medonmez/novim-custom/pull/6`
 Remote checks: `OPTIONAL / NOT_RUN`
-Merge status: `NOT_DELIVERED`
-Target branch contains change: `NO`
+Merge status: `MERGED`
+Target branch contains change: `YES` (`origin/main`)
+Merge commit: `cd938e2ce0ef9e792b2979cd325e614a65d42590`
 
 ## Review result
 
@@ -72,13 +73,13 @@ customer-acceptance claim is made.
 
 ## Delivery decision
 
-`APPROVED` for lightweight PR delivery. Push
-`task/TASK-005-regression-smoke-tests`, open or reuse its single PR targeting
-`main`, and merge promptly if it is mergeable and no explicit required check
-blocks it.
+`ACCEPTED` after lightweight PR #6 merge. The reviewed head is contained in
+`origin/main`; review and validation evidence are local, with remote branch
+containment verified separately. No hosted, production, recovery, or
+customer-acceptance claim is made.
 
 ## Next action
 
-Deliver the reviewed candidate through the task branch PR, verify the merged
-result is contained in `origin/main`, then reconcile TASK-005 as `ACCEPTED` and
-issue the next single actionable task.
+TASK-005 is complete. TASK-006 is now the single actionable planned task on
+`task/TASK-006-package-upstream-sync` from the verified TASK-005 merge commit
+`cd938e2ce0ef9e792b2979cd325e614a65d42590`.
