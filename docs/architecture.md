@@ -58,6 +58,19 @@ ln -sf /Users/mert/novim-custom/bin/novim-dev ~/.local/bin/novim-dev
 Verification:
 - `novim-dev --version` reports the development launcher without network activity.
 - `novim --version` continues to invoke the upstream release at `~/.local/bin/novim`.
+
+## Local testing and regression smoke layer
+
+Deterministic local validation is provided through standalone scripts without external dependencies:
+
+- `./tests/run_tests.sh`: runs all test suites, including the unit/integration suite (`tests/test_workbench.lua`) and the regression smoke runner. Supports `--smoke` / `-s` to run only smoke checks, or `--all` / `-a` to run both.
+- `./tests/run_smoke_tests.sh`: dedicated end-to-end regression smoke runner. It exercises:
+  1. CLI flags (`--version`, `-v`, `--help`) and output validation.
+  2. Working directory independence (invoking from `/tmp`) and symlink path resolution.
+  3. Isolation from installed `novim` (`~/.local/share/novim` remains untouched).
+  4. Headless Neovim execution of `tests/test_smoke.lua` against isolated temporary Git/project fixtures, verifying two-pane layout, divider constraints, view switching, source preview/editing handoff, unsaved buffer preservation, settings persistence/malformed fallback, and byte-for-byte Git read-only invariance.
+  5. Post-run artifact cleanup verification ensuring zero fixture residue.
+
 ## Accepted target direction
 
 After bootstrap, the target product direction is a read-only diff workbench:
