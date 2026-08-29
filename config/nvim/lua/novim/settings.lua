@@ -1,11 +1,14 @@
 -- novim/settings.lua - Persistent local settings for novim custom derivative
 -- Part of novim custom derivative
 
+local themes = require("novim.themes")
+
 local M = {}
 
 -- Default settings
 local DEFAULTS = {
   show_dotfiles = false,
+  theme = themes.default_id,
 }
 
 -- In-memory cache of current settings
@@ -49,6 +52,9 @@ function M.load(force_reload)
         if type(decoded.show_dotfiles) == "boolean" then
           settings.show_dotfiles = decoded.show_dotfiles
         end
+        if type(decoded.theme) == "string" and themes.is_valid(decoded.theme) then
+          settings.theme = decoded.theme
+        end
       end
     end
   end
@@ -81,6 +87,9 @@ function M.save(new_settings)
   if type(new_settings.show_dotfiles) == "boolean" then
     settings_to_save.show_dotfiles = new_settings.show_dotfiles
   end
+  if type(new_settings.theme) == "string" and themes.is_valid(new_settings.theme) then
+    settings_to_save.theme = new_settings.theme
+  end
 
   local encode_ok, json_str = pcall(vim.json.encode, settings_to_save)
   if not encode_ok or not json_str then
@@ -112,21 +121,25 @@ function M.get(key)
   return s[key]
 end
 
---- Set a specific setting value and save it
+--- Get all current settings
+---@return table
+function M.get_all()
+  return M.load()
+end
+
+--- Set a specific setting value and save it.
+--- Theme values are validated against the built-in catalog before persisting.
 ---@param key string
 ---@param value any
 ---@return boolean success
 ---@return string? error_msg
 function M.set(key, value)
+  if key == "theme" and (type(value) ~= "string" or not themes.is_valid(value)) then
+    return false, "Invalid theme: " .. tostring(value)
+  end
   local s = M.load()
   s[key] = value
   return M.save(s)
-end
-
---- Get all current settings
----@return table
-function M.get_all()
-  return M.load()
 end
 
 --- Toggle dotfiles visibility setting and save immediately.

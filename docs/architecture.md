@@ -40,12 +40,17 @@ The repository is a direct clone of upstream novim at tag `v0.1.7`.
   expanded folder collapses it and removes its descendants, and expansion
   state lives in workbench memory for the current session only. Symlink loops
   are refused by comparing real paths against the folder's own ancestors.
-- Settings currently persist only dot-folder visibility. The settings modal
-  has direct `Esc` and `q` mappings but no theme controls or embedded key-help
-  section.
+- Settings persist dot-folder visibility and the selected built-in theme.
+  The settings modal offers theme selection (six application-owned themes,
+  Tokyo Night default), an embedded key-help section rendered below the
+  controls, and immediate `Esc`/`q` close that restores workbench focus.
+  Themes apply through `novim.themes` highlight mappings with no plugin
+  dependency; theme state lives in the isolated settings file.
 - The current Diff view renders a selected file as unified text in the right
-  preview window. The existing divider is a native split boundary and has no
-  explicit application drag state.
+  preview window. The visible pane boundary has an application-owned drag
+  state: pressing the divider starts a drag, `<LeftDrag>` resizes both
+  directions, and widths clamp to minimum pane widths (left 15, right 20
+  columns) without `E21` or invalid-window failures.
 
 ### External boundaries
 

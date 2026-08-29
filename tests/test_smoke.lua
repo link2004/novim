@@ -659,6 +659,117 @@ function smoke_tests.test_smoke_settings_persistence_dotfile_toggle_and_error_re
 end
 
 -- =========================================================================
+-- 6. Theme Selection, Settings Key Help, Immediate Esc Close & Pane Drag
+-- =========================================================================
+
+function smoke_tests.test_smoke_theme_selection_key_help_and_esc_close()
+  local settings = require("novim.settings")
+  local themes = require("novim.themes")
+  local workbench = require("novim.workbench")
+  local settings_ui = require("novim.settings_ui")
+  local fixture = create_smoke_project_fixture()
+  local old_cwd = vim.fn.getcwd()
+
+  -- Use an isolated settings file in the run-specific temp root
+  local settings_temp_dir = create_temp_fixture_dir("smoke_theme_state")
+  local test_settings_file = settings_temp_dir .. "/novim_settings.json"
+  local orig_get_path = settings.get_settings_file_path
+  settings.get_settings_file_path = function()
+    return test_settings_file
+  end
+
+  local ok, test_err = pcall(function()
+    -- Missing settings file defaults to Tokyo Night; six themes are available
+    settings.reset_cache()
+    assert_eq(settings.get("theme"), "tokyo_night", "missing theme value must default to Tokyo Night")
+    assert_eq(#themes.list(), 6, "exactly six built-in themes must be available")
+
+    vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+    workbench.close()
+    workbench.open({ view = "files" })
+    local st = workbench.get_state()
+
+    workbench.open_settings()
+    assert_true(settings_ui.is_open(), "settings panel must open from the workbench")
+
+    -- Key help renders below the theme and dot-folder controls
+    local lines = vim.api.nvim_buf_get_lines(settings_ui.get_buf(), 0, -1, false)
+    local theme_row, help_row, dot_row
+    for i, l in ipairs(lines) do
+      if l:find("Show Dot-Folders", 1, true) then dot_row = i end
+      if l:find("Theme:", 1, true) then theme_row = i end
+      if l:find("Key Bindings (Workbench)", 1, true) then help_row = i end
+    end
+    assert_true(dot_row ~= nil, "settings panel must render the dot-folder control")
+    assert_true(theme_row ~= nil, "settings panel must render the theme control")
+    assert_true(help_row ~= nil, "settings panel must render the key help section")
+    assert_true(help_row > theme_row and theme_row > dot_row, "key help must render below the controls")
+    assert_true(table.concat(lines, "\n"):find("q or Esc Esc", 1, true) ~= nil,
+      "key help must document the workbench quit shortcut")
+
+    -- One Esc press closes immediately and restores workbench focus
+    local esc_cb = nil
+    for _, m in ipairs(vim.api.nvim_buf_get_keymap(settings_ui.get_buf(), "n")) do
+      if m.lhs == "<Esc>" then
+        esc_cb = m.callback
+      end
+    end
+    esc_cb()
+    assert_true(not settings_ui.is_open(), "one Esc press must close settings immediately")
+    assert_eq(vim.api.nvim_get_current_win(), st.win_left, "Esc must restore workbench focus")
+    -- Theme cycling persists across a simulated fresh launch
+    settings_ui.cycle_theme(1)
+    assert_eq(settings.get("theme"), "nord", "cycling must select the next built-in theme")
+    settings.reset_cache()
+    assert_eq(settings.load(true).theme, "nord", "theme selection must persist across launches")
+
+    -- Invalid persisted theme falls back safely and keeps unrelated settings
+    local f = io.open(test_settings_file, "w")
+    if f then
+      f:write('{"theme": "dracula", "show_dotfiles": true}')
+      f:close()
+    end
+    settings.reset_cache()
+    local reloaded = settings.load(true)
+    assert_eq(reloaded.theme, "tokyo_night", "invalid theme value must fall back to the default")
+    assert_eq(reloaded.show_dotfiles, true, "invalid theme must not clobber unrelated settings")
+
+    -- Application-owned divider drag works in both directions with clamping
+    workbench.close()
+    workbench.open({ view = "files" })
+    st = workbench.get_state()
+    local total = vim.o.columns
+    local w0 = vim.api.nvim_win_get_width(st.win_left)
+    local sep_col = vim.fn.win_screenpos(st.win_right)[2] - 1
+    workbench.pane_drag_start(sep_col)
+    workbench.pane_drag_move(sep_col + 10)
+    local w_wider = vim.api.nvim_win_get_width(st.win_left)
+    assert_true(w_wider > w0, "dragging right must widen the left pane")
+    workbench.pane_drag_move(0)
+    local w_min = vim.api.nvim_win_get_width(st.win_left)
+    assert_true(w_min < w_wider, "dragging left must narrow the left pane")
+    assert_true(w_min >= 15, "left pane must keep its minimum width")
+    workbench.pane_drag_move(total)
+    assert_true(vim.api.nvim_win_get_width(st.win_right) >= 20, "right pane must keep its minimum width")
+    workbench.pane_drag_end()
+    assert_true(vim.api.nvim_win_is_valid(st.win_left) and vim.api.nvim_win_is_valid(st.win_right),
+      "both panes must stay valid through the drag")
+
+    workbench.close()
+  end)
+
+  settings.get_settings_file_path = orig_get_path
+  settings.reset_cache()
+  cleanup_dir(settings_temp_dir)
+  cleanup_dir(fixture)
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+
+  if not ok then
+    error(test_err)
+  end
+end
+
+-- =========================================================================
 -- 6. Deterministic Fixture Cleanup Guarantee
 -- =========================================================================
 
@@ -694,6 +805,7 @@ local test_order = {
   "test_smoke_source_navigation_editing_and_buffer_preservation",
   "test_smoke_git_diff_rendering_and_read_only_invariance",
   "test_smoke_settings_persistence_dotfile_toggle_and_error_recovery",
+  "test_smoke_theme_selection_key_help_and_esc_close",
   "test_smoke_deterministic_fixture_cleanup",
 }
 

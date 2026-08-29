@@ -42,6 +42,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Snapshot the checksum of every tracked product source file under bin/ and
+# config/ before test execution. Step 4 compares against this snapshot so
+# only mutations caused by the tests themselves fail the run; uncommitted
+# task-branch changes made before the run are legitimate.
+PRODUCT_SNAPSHOT="$(cd "$PROJECT_ROOT" && git ls-files -- bin/ config/ | while IFS= read -r path; do
+  if [[ -f "$path" ]]; then
+    shasum -a 256 "$path"
+  fi
+done)"
+
 echo ""
 echo "--- Step 1: CLI and Flag Smoke Checks ---"
 
@@ -138,22 +148,18 @@ if [[ -d "$RUN_TEMP_ROOT" ]]; then
 fi
 echo "  ✓ PASS: Zero fixture residue left in run temporary root ($RUN_TEMP_ROOT)"
 
-# Verify tracked product source files were not modified by test execution.
-# A task branch may legitimately contain a new launcher under bin/; compare
-# tracked content here while the package runner compares the full checkout
-# status before and after its run.
-PRODUCT_MODS="$(git -C "$PROJECT_ROOT" diff --name-only HEAD -- bin/ config/ | while IFS= read -r path; do
-  if git -C "$PROJECT_ROOT" cat-file -e "HEAD:$path" 2>/dev/null; then
-    printf '%s\n' "$path"
+# Verify tracked product source files were not modified by test execution:
+# compare current checksums against the snapshot taken before the run. A task
+# branch may legitimately contain uncommitted product changes made before the
+# run; only changes made DURING the run fail this check.
+PRODUCT_SNAPSHOT_END="$(cd "$PROJECT_ROOT" && git ls-files -- bin/ config/ | while IFS= read -r path; do
+  if [[ -f "$path" ]]; then
+    shasum -a 256 "$path"
   fi
 done)"
-if [[ -n "$PRODUCT_MODS" ]]; then
-  echo "Error: Product code in bin/ or config/ was unexpectedly modified:" >&2
-  echo "$PRODUCT_MODS" >&2
+if [[ "$PRODUCT_SNAPSHOT_END" != "$PRODUCT_SNAPSHOT" ]]; then
+  echo "Error: Product code in bin/ or config/ was modified during the test run:" >&2
+  diff <(echo "$PRODUCT_SNAPSHOT") <(echo "$PRODUCT_SNAPSHOT_END") >&2 || true
   exit 1
 fi
 echo "  ✓ PASS: Product source tree remains clean"
-
-echo ""
-echo "=== All novim-dev Regression Smoke Tests Passed Successfully ==="
-exit 0

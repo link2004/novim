@@ -16,147 +16,15 @@
 
 
 ----------------------------------------------------------------------
--- 1. Tokyo Night Color Scheme
+-- 1. Color Scheme (application-owned built-in themes)
 ----------------------------------------------------------------------
 
--- Tokyo Night color palette
-local colors = {
-  bg = "#1a1b26",
-  bg_dark = "#16161e",
-  bg_float = "#16161e",
-  bg_highlight = "#292e42",
-  bg_popup = "#16161e",
-  bg_search = "#3d59a1",
-  bg_sidebar = "#16161e",
-  bg_statusline = "#16161e",
-  bg_visual = "#283457",
-  blue = "#7aa2f7",
-  blue0 = "#3d59a1",
-  blue1 = "#2ac3de",
-  blue2 = "#0db9d7",
-  blue5 = "#89ddff",
-  blue6 = "#b4f9f8",
-  blue7 = "#394b70",
-  comment = "#565f89",
-  cyan = "#7dcfff",
-  dark3 = "#545c7e",
-  dark5 = "#737aa2",
-  fg = "#c0caf5",
-  fg_dark = "#a9b1d6",
-  fg_gutter = "#3b4261",
-  green = "#9ece6a",
-  green1 = "#73daca",
-  green2 = "#41a6b5",
-  magenta = "#bb9af7",
-  magenta2 = "#ff007c",
-  orange = "#ff9e64",
-  purple = "#9d7cd8",
-  red = "#f7768e",
-  red1 = "#db4b4b",
-  teal = "#1abc9c",
-  terminal_black = "#414868",
-  yellow = "#e0af68",
-}
-
--- Apply colorscheme
+-- The default palette is Tokyo Night. The workbench Settings panel can
+-- switch at runtime to any of the six application-owned built-in themes
+-- (Tokyo Night, Nord, Gruvbox Dark, Catppuccin Mocha, One Dark, Solarized
+-- Light) through `novim.themes`; no plugin or external colorscheme is used.
 vim.cmd("highlight clear")
-vim.o.background = "dark"
-vim.g.colors_name = "tokyonight"
-
-local function hl(group, opts)
-  vim.api.nvim_set_hl(0, group, opts)
-end
-
--- Editor
-hl("Normal", { fg = colors.fg, bg = colors.bg })
-hl("NormalFloat", { fg = colors.fg, bg = colors.bg_float })
-hl("Cursor", { fg = colors.bg, bg = colors.fg })
-hl("CursorLine", { bg = colors.bg_highlight })
-hl("CursorLineNr", { fg = colors.yellow, bold = true })
-hl("LineNr", { fg = colors.fg_gutter })
-hl("SignColumn", { fg = colors.fg_gutter, bg = colors.bg })
-hl("VertSplit", { fg = colors.terminal_black })
-hl("WinSeparator", { fg = colors.terminal_black })
-hl("StatusLine", { fg = colors.fg_dark, bg = colors.bg_statusline })
-hl("StatusLineNC", { fg = colors.comment, bg = colors.bg_statusline })
-hl("Pmenu", { fg = colors.fg, bg = colors.bg_popup })
-hl("PmenuSel", { bg = colors.bg_highlight })
-hl("Visual", { bg = colors.bg_visual })
-hl("Search", { fg = colors.fg, bg = colors.bg_search })
-hl("IncSearch", { fg = colors.bg, bg = colors.orange })
-hl("MatchParen", { fg = colors.orange, bold = true })
-hl("NonText", { fg = colors.dark3 })
-hl("SpecialKey", { fg = colors.dark3 })
-hl("Directory", { fg = colors.blue })
-hl("Title", { fg = colors.blue, bold = true })
-hl("ErrorMsg", { fg = colors.red })
-hl("WarningMsg", { fg = colors.yellow })
-hl("MoreMsg", { fg = colors.blue })
-hl("Question", { fg = colors.blue })
-hl("Folded", { fg = colors.comment, bg = colors.bg_highlight })
-hl("FoldColumn", { fg = colors.comment, bg = colors.bg })
-hl("DiffAdd", { bg = "#20303b" })
-hl("DiffChange", { bg = "#1f2231" })
-hl("DiffDelete", { fg = colors.red1, bg = "#37222c" })
-hl("DiffText", { bg = "#394b70" })
-hl("FloatBorder", { fg = colors.blue0, bg = colors.bg_float })
-
--- Diff syntax (Tokyo Night style)
-hl("diffAdded", { fg = colors.green })
-hl("diffRemoved", { fg = colors.red1 })
-hl("diffChanged", { fg = colors.blue })
-hl("diffFile", { fg = colors.blue, bold = true })
-hl("diffNewFile", { fg = colors.green, bold = true })
-hl("diffOldFile", { fg = colors.red, bold = true })
-hl("diffLine", { fg = colors.purple })
-hl("diffIndexLine", { fg = colors.comment })
-hl("diffSubname", { fg = colors.blue5 })
-
--- Syntax
-hl("Comment", { fg = colors.comment, italic = true })
-hl("Constant", { fg = colors.orange })
-hl("String", { fg = colors.green })
-hl("Character", { fg = colors.green })
-hl("Number", { fg = colors.orange })
-hl("Boolean", { fg = colors.orange })
-hl("Float", { fg = colors.orange })
-hl("Identifier", { fg = colors.magenta })
-hl("Function", { fg = colors.blue })
-hl("Statement", { fg = colors.magenta })
-hl("Conditional", { fg = colors.magenta })
-hl("Repeat", { fg = colors.magenta })
-hl("Label", { fg = colors.blue })
-hl("Operator", { fg = colors.blue5 })
-hl("Keyword", { fg = colors.purple, italic = true })
-hl("Exception", { fg = colors.magenta })
-hl("PreProc", { fg = colors.cyan })
-hl("Include", { fg = colors.blue })
-hl("Define", { fg = colors.magenta })
-hl("Macro", { fg = colors.magenta })
-hl("PreCondit", { fg = colors.cyan })
-hl("Type", { fg = colors.blue1 })
-hl("StorageClass", { fg = colors.blue })
-hl("Structure", { fg = colors.blue })
-hl("Typedef", { fg = colors.blue })
-hl("Special", { fg = colors.blue1 })
-hl("SpecialChar", { fg = colors.blue1 })
-hl("Tag", { fg = colors.blue })
-hl("Delimiter", { fg = colors.fg })
-hl("SpecialComment", { fg = colors.comment })
-hl("Debug", { fg = colors.orange })
-hl("Underlined", { underline = true })
-hl("Error", { fg = colors.red })
-hl("Todo", { fg = colors.bg, bg = colors.yellow, bold = true })
-
--- netrw (file tree)
-hl("netrwDir", { fg = colors.blue })
-hl("netrwClassify", { fg = colors.blue })
-hl("netrwLink", { fg = colors.magenta })
-hl("netrwSymLink", { fg = colors.cyan })
-hl("netrwExe", { fg = colors.green })
-hl("netrwComment", { fg = colors.comment })
-hl("netrwList", { fg = colors.blue })
-hl("netrwTreeBar", { fg = colors.fg_gutter })
+require("novim.themes").apply("tokyo_night")
 
 
 ----------------------------------------------------------------------
@@ -204,8 +72,7 @@ vim.opt.clipboard = "unnamedplus"
 -- 4. Highlight Changed Lines
 ----------------------------------------------------------------------
 
--- Highlight color for changed lines (uses Tokyo Night green tint)
-hl("ChangedLine", { bg = "#1e3a2a" })
+-- ChangedLine highlight color is owned by the active theme (novim.themes).
 
 -- Track changed lines and highlight them
 local changed_lines = {}
@@ -599,10 +466,7 @@ require("gitsigns").setup({
   current_line_blame = false,  -- Set to true to show git blame inline
 })
 
--- Gitsigns colors (Tokyo Night style)
-hl("GitSignsAdd", { fg = colors.green })
-hl("GitSignsChange", { fg = colors.blue })
-hl("GitSignsDelete", { fg = colors.red })
+-- Gitsigns colors are owned by the active theme (novim.themes).
 
 
 ----------------------------------------------------------------------

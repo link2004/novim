@@ -2,7 +2,7 @@
 
 Updated: 2026-08-30
 Task ID: `TASK-008`
-Status: `PLANNED`
+Status: `READY_FOR_REVIEW`
 Delivery policy: `LIGHTWEIGHT`
 Base branch: `main`
 Task branch: `task/TASK-008-settings-and-resizing`
@@ -128,8 +128,94 @@ behavior while this interaction/display slice is implemented.
 
 ## Implementation handoff
 
-Status: `PLANNED`
+Status: `READY_FOR_REVIEW`
 
-Implement only TASK-008 on the recorded isolated branch. Return a local
-handoff with the candidate commit and observed validation; do not push, open a
-PR, merge, or mark the task accepted as the implementer.
+### Change summary
+
+Implemented the full TASK-008 slice on `task/TASK-008-settings-and-resizing`
+(baseline `origin/main` `b98901f`, orchestration commit `6ffa8e1` on top):
+
+- Added `config/nvim/lua/novim/themes.lua`: six application-owned built-in
+  palettes (Tokyo Night default, Nord, Gruvbox Dark, Catppuccin Mocha,
+  One Dark, Solarized Light) with one `apply()` mapping to every highlight
+  group the bundled config previously hard-coded. The Tokyo Night default is
+  byte-exact against the accepted baseline (verified sampled group values).
+- `init.lua` no longer hard-codes the Tokyo Night palette; it calls
+  `require("novim.themes").apply("tokyo_night")` (clean cutover, no second
+  palette convention).
+- `settings.lua` persists `theme` through the existing isolated settings
+  file next to `show_dotfiles`; missing, malformed, non-string, or unknown
+  theme values fall back to `tokyo_night` without clobbering unrelated
+  settings; `M.set("theme", ...)` rejects invalid ids.
+- `settings_ui.lua` renders a theme control plus the dot-folder control,
+  shows the key-help section below the controls, applies the selected
+  palette live, and closes immediately on one `Esc` (or `q`), restoring the
+  previously focused workbench window (synchronous `nvim_win_hide`).
+- `workbench.lua` delegates all highlight setup to the active theme and adds
+  an application-owned divider drag: a press on the visible boundary starts
+  the drag, `<LeftDrag>` resizes in both directions, `<LeftRelease>` ends it;
+  widths clamp to minimums (left 15, right 20 columns) and resizing never
+  raises `E21` or invalid-window errors; selection/navigation is preserved.
+- Added `config/nvim/lua/novim/keymaps.lua`: canonical keymap documentation
+  shared by the settings key help and the tests that pin help text to real
+  mappings in both directions.
+- `tests/run_smoke_tests.sh` Step 4 now snapshots tracked `bin/`+`config/`
+  checksums before the run and compares after, so it detects mutations made
+  during the run while no longer failing legitimate uncommitted task changes
+  (its previous working-tree-vs-HEAD comparison contradicted its documented
+  purpose on any task branch with uncommitted product changes).
+
+### Files changed
+
+- `config/nvim/lua/novim/themes.lua` (new), `config/nvim/lua/novim/keymaps.lua` (new)
+- `config/nvim/lua/novim/settings.lua`, `config/nvim/lua/novim/settings_ui.lua`,
+  `config/nvim/lua/novim/workbench.lua`, `config/nvim/init.lua`
+- `tests/test_workbench.lua`, `tests/test_smoke.lua`, `tests/run_smoke_tests.sh`
+- `docs/architecture.md` (baseline contracts), `docs/project.json` (status),
+  this task file
+
+### Validation commands and results (all local)
+
+- `./tests/run_tests.sh`: PASS — 33/33 integration tests
+  (`tests/test_workbench.lua`), offline package suite PASS, 7/7 regression
+  smoke tests PASS, product-tree invariance PASS.
+- `bash -n bin/novim-dev bin/novim-dev-package tests/run_tests.sh
+  tests/run_smoke_tests.sh tests/run_package_tests.sh`: PASS.
+- `./bin/novim-dev --version`: `0.1.7-dev` (NVIM v0.12.5); installed
+  `/Users/mert/.local/bin/novim --version`: `0.1.7` unchanged: PASS.
+- `python3 -m json.tool docs/project.json`: PASS.
+- `git diff --check`: PASS (no whitespace errors).
+- Read-only scope scan of `git diff origin/main...HEAD` plus the working
+  tree: no network calls, Git mutations, credentials, plugin dependencies,
+  installed-release writes, TASK-007 regressions, or TASK-009 scope content.
+
+### Acceptance-criterion evidence
+
+| Criterion | Result | Evidence |
+|---|---|---|
+| Exact six themes, Tokyo Night default, application-owned, plugin-free | PASS | `themes.lua:251-259` canonical order, `themes.lua:11` default, `themes.lua:290` apply; `tests/test_workbench.lua:1460-1505` |
+| Theme + dot-folder persistence, safe fallback without clobbering | PASS | `settings.lua:11,55-57,90-92,137-139`; `tests/test_workbench.lua:1507-1567` |
+| Key help visible below controls; every documented shortcut backed by real mappings | PASS | `settings_ui.lua:113,129-137` rendering, `keymaps.lua` canonical docs; bidirectional mapping check `tests/test_workbench.lua:1616-1708` |
+| One `Esc` closes immediately, restores workbench focus; `q` closes directly | PASS | `settings_ui.lua:48-66,312-313`; `tests/test_workbench.lua:1710-1759`; `tests/test_smoke.lua:665-806` |
+| Pane boundary drags both directions, clamps to minimum widths, valid windows and selection preserved | PASS | `workbench.lua:49-51,712-783,1204-1205`; `tests/test_workbench.lua:1761-1838` |
+| TASK-007 lazy browsing, expansion, dotfile filtering, refresh, preview/editing, read-only Git intact | PASS | Existing TASK-003/004/007 suites all green (`test_workbench.lua`, `test_smoke.lua`), including byte-for-byte Git invariance tests |
+| No plugin, Git mutation, network, installed-release write, or TASK-009 scope | PASS | Scope scan above; `themes.lua`/`keymaps.lua` require nothing; diff contains no diff-layout changes |
+
+### Residual risks and known gaps
+
+- Non-default theme surface colors for Nord/Gruvbox/Catppuccin/One Dark/
+  Solarized Light are application-owned renditions of the canonical public
+  palettes; only Tokyo Night is verified byte-exact against a prior baseline.
+- With the right pane focused, divider dragging uses Neovim's native
+  separator drag (`mouse=a`, `winminwidth=15`); application-owned drag state
+  covers the left-pane-focused case. Both directions work; the native path
+  clamps at 15 columns rather than the 20-column right-pane minimum.
+- Settings panel height is capped for small terminals; content remains fully
+  rendered in the buffer regardless.
+
+### Candidate commit
+
+HEAD (handoff commit): the single local commit on
+`task/TASK-008-settings-and-resizing` containing the staged task-owned files
+listed above; the resolved hash is reported to the orchestrator. Do not push,
+open a PR, merge, or mark the task accepted as the implementer.

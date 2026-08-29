@@ -27,7 +27,7 @@
   },
   "workflow": {
     "currentTask": "TASK-008",
-    "currentTaskStatus": "PLANNED",
+    "currentTaskStatus": "READY_FOR_REVIEW",
     "pullRequest": null,
     "remoteChecks": "OPTIONAL / NOT_RUN",
     "lastAcceptedTask": "TASK-007",

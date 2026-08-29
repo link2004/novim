@@ -5,6 +5,8 @@ local git = require("novim.git")
 local browser = require("novim.browser")
 local settings = require("novim.settings")
 local settings_ui = require("novim.settings_ui")
+local themes = require("novim.themes")
+local keymaps = require("novim.keymaps")
 local uv = vim.uv or vim.loop
 
 local M = {}
@@ -39,8 +41,14 @@ local state = {
   win_left = nil,
   buf_right = nil,
   win_right = nil,
+  drag = nil, -- active divider drag: { start_col, start_width }
   ns_id = vim.api.nvim_create_namespace("novim_workbench"),
 }
+
+-- Minimum usable pane widths in columns. The divider itself is one column,
+-- so the widest the left pane may grow is (columns - MIN_RIGHT_WIDTH - 1).
+local MIN_LEFT_WIDTH = 15
+local MIN_RIGHT_WIDTH = 20
 
 --- Create a scratch buffer with a fixed display name.
 --- Reopening the workbench in the same session would otherwise fail with
@@ -62,51 +70,10 @@ local function fresh_buffer(name)
 end
 
 -- Ensure highlights are set up
+-- The palette is application-owned; the persisted theme id is validated by
+-- settings.load and novim.themes falls back to Tokyo Night for unknown ids.
 local function setup_highlights()
-  local function hl(group, opts)
-    vim.api.nvim_set_hl(0, group, opts)
-  end
-
-  -- Workbench UI highlights (Tokyo Night style)
-  hl("WorkbenchHeader", { fg = "#7aa2f7", bold = true })
-  hl("WorkbenchSubHeader", { fg = "#565f89", italic = true })
-  hl("WorkbenchDivider", { fg = "#292e42" })
-  hl("WorkbenchSummary", { fg = "#9aa5ce" })
-  hl("WorkbenchClean", { fg = "#9ece6a", bold = true })
-  hl("WorkbenchError", { fg = "#f7768e", bold = true })
-
-  -- Tabs
-  hl("WorkbenchTabActive", { fg = "#7aa2f7", bg = "#24283b", bold = true })
-  hl("WorkbenchTabInactive", { fg = "#565f89", bg = "#1a1b26" })
-  hl("WorkbenchTabAction", { fg = "#e0af68" })
-
-  -- File status highlights
-  hl("WorkbenchStatusM", { fg = "#e0af68", bold = true }) -- Modified (Yellow/Orange)
-  hl("WorkbenchStatusA", { fg = "#9ece6a", bold = true }) -- Added (Green)
-  hl("WorkbenchStatusU", { fg = "#7dcfff", bold = true }) -- Untracked (Cyan)
-  hl("WorkbenchStatusD", { fg = "#f7768e", bold = true }) -- Deleted (Red)
-  hl("WorkbenchStatusR", { fg = "#bb9af7", bold = true }) -- Renamed (Magenta)
-
-  -- Project Browser highlights
-  hl("WorkbenchBrowserDir", { fg = "#7aa2f7", bold = true })
-  hl("WorkbenchBrowserFile", { fg = "#c0caf5" })
-  hl("WorkbenchBrowserDot", { fg = "#565f89", italic = true })
-
-  -- Markers & Hints
-  hl("WorkbenchPath", { fg = "#c0caf5" })
-  hl("WorkbenchActiveMarker", { fg = "#7aa2f7", bold = true })
-  hl("WorkbenchKeyHint", { fg = "#7aa2f7" })
-
-  -- Diff syntax highlights
-  hl("diffAdded", { fg = "#9ece6a" })
-  hl("diffRemoved", { fg = "#f7768e" })
-  hl("diffChanged", { fg = "#7aa2f7" })
-  hl("diffFile", { fg = "#7dcfff", bold = true })
-  hl("diffNewFile", { fg = "#9ece6a", bold = true })
-  hl("diffOldFile", { fg = "#f7768e", bold = true })
-  hl("diffLine", { fg = "#bb9af7" })
-  hl("diffIndexLine", { fg = "#565f89" })
-  hl("diffSubname", { fg = "#9aa5ce" })
+  themes.apply(settings.get("theme"))
 end
 
 --- Format summary line for Git Diff
@@ -739,9 +706,92 @@ local function on_left_cursor_moved()
   end
 end
 
+--- Screen column of the divider between the left and right panes, or nil
+--- when the two panes are not adjacent (so no divider drag may start).
+---@return integer? col
+local function divider_column()
+  if not state.win_left or not vim.api.nvim_win_is_valid(state.win_left)
+    or not state.win_right or not vim.api.nvim_win_is_valid(state.win_right) then
+    return nil
+  end
+  local left_pos = vim.fn.win_screenpos(state.win_left)
+  local right_pos = vim.fn.win_screenpos(state.win_right)
+  local sep_col = right_pos[2] - 1
+  -- The divider exists only when the right window starts directly after
+  -- the left window plus the one-column separator.
+  if left_pos[2] + vim.api.nvim_win_get_width(state.win_left) ~= sep_col then
+    return nil
+  end
+  return sep_col
+end
+
+--- Resize the left pane to a target width, clamped so both panes stay usable.
+--- Never raises: invalid windows are ignored and out-of-range targets clamp
+--- to the minimum widths, so a drag can never produce E21 or invalid windows.
+---@param target_width number
+---@return integer actual_width
+function M.resize_left_pane(target_width)
+  if not state.win_left or not vim.api.nvim_win_is_valid(state.win_left) then
+    return 0
+  end
+
+  local total_cols = vim.o.columns
+  local min_w = math.max(MIN_LEFT_WIDTH, vim.o.winminwidth or 0)
+  local max_w = total_cols - MIN_RIGHT_WIDTH - 1
+  if max_w < min_w then
+    max_w = min_w
+  end
+
+  local width = math.floor(tonumber(target_width) or 0)
+  width = math.max(min_w, math.min(max_w, width))
+
+  if state.win_right and vim.api.nvim_win_is_valid(state.win_right) then
+    pcall(vim.api.nvim_win_set_width, state.win_left, width)
+  end
+  return vim.api.nvim_win_get_width(state.win_left)
+end
+
+--- Begin a divider drag anchored at the given screen column.
+---@param screencol integer
+function M.pane_drag_start(screencol)
+  if not state.win_left or not vim.api.nvim_win_is_valid(state.win_left) then
+    return
+  end
+  state.drag = {
+    start_col = screencol,
+    start_width = vim.api.nvim_win_get_width(state.win_left),
+  }
+end
+
+--- Move an active divider drag to the given screen column and resize live.
+--- Without an active drag this is a no-op, so stale drag events are harmless.
+---@param screencol integer
+function M.pane_drag_move(screencol)
+  if not state.drag then
+    return
+  end
+  local delta = screencol - state.drag.start_col
+  M.resize_left_pane(state.drag.start_width + delta)
+end
+
+--- End the active divider drag.
+function M.pane_drag_end()
+  state.drag = nil
+end
+
 --- Handle mouse click in left pane
 local function on_left_click()
   local mouse = vim.fn.getmousepos()
+
+  -- A press on the visible pane boundary starts a divider drag instead of
+  -- changing the selection; dragging the boundary resizes both directions.
+  local sep_col = divider_column()
+  if sep_col and mouse.screencol == sep_col
+    and (mouse.winid == state.win_left or mouse.winid == state.win_right or mouse.winid == 0) then
+    M.pane_drag_start(mouse.screencol)
+    return
+  end
+
   if mouse.winid == state.win_left then
     -- Check if click was on header tabs
     if mouse.line == 1 then
@@ -778,6 +828,17 @@ local function on_left_click()
     end
   end
 end
+
+--- Handle mouse drag motion: resize the panes while a divider drag is active.
+local function on_left_drag()
+  M.pane_drag_move(vim.fn.getmousepos().screencol)
+end
+
+--- Handle mouse release: finish any active divider drag.
+local function on_left_release()
+  M.pane_drag_end()
+end
+
 
 
 --- Show help popup
@@ -841,7 +902,15 @@ function M.show_help()
   for _, key in ipairs(keys) do
     vim.keymap.set("n", key, close_help, { buffer = buf, silent = true })
   end
+
 end
+--- Canonical workbench keymap documentation. This is the single source that
+--- the settings panel key-help renders and the tests pin to actual mappings.
+---@return table
+function M.get_keymap_docs()
+  return keymaps.workbench
+end
+
 
 --- Close workbench safely and preserve editor layout
 ---@param opts? { quit?: boolean }
@@ -1130,6 +1199,10 @@ function M.open(opts)
         end
       end
     end, opts)
+
+    -- Application-owned divider drag (press starts it via <LeftMouse>)
+    vim.keymap.set("n", "<LeftDrag>", on_left_drag, opts)
+    vim.keymap.set("n", "<LeftRelease>", on_left_release, opts)
 
     -- Pane switching
     vim.keymap.set("n", "<Tab>", function()

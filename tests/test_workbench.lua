@@ -1433,6 +1433,405 @@ function tests.test_task004_source_navigation_git_invariance()
 end
 
 -- =========================================================================
+-- TASK-008 New Feature Tests (Themes, Settings Key Help, Esc Close, Pane Drag)
+-- =========================================================================
+
+--- Collect the lhs strings of all Normal-mode mappings of a buffer.
+--- nvim_buf_get_keymap is buffer-scoped, so every returned map belongs to it.
+local function buf_local_lhs(buf)
+  local lhs_set = {}
+  for _, map in ipairs(vim.api.nvim_buf_get_keymap(buf, "n")) do
+    lhs_set[map.lhs] = true
+  end
+  return lhs_set
+end
+
+--- All lhs spellings nvim_buf_get_keymap may use for a documented key.
+--- Space is stored as a literal space; Ctrl keys are canonicalized uppercase.
+local function lhs_spellings(key)
+  if key == "<Space>" then
+    return { key, " " }
+  elseif key == "<C-r>" then
+    return { key, "<C-R>" }
+  end
+  return { key }
+end
+
+function tests.test_theme_catalog_defaults_and_application()
+  local settings = require("novim.settings")
+  local themes = require("novim.themes")
+
+  -- Exactly six built-in themes in canonical order
+  local list = themes.list()
+  assert_eq(#list, 6, "exactly six built-in themes must exist")
+  local expected_ids = { "tokyo_night", "nord", "gruvbox_dark", "catppuccin_mocha", "one_dark", "solarized_light" }
+  local expected_labels = { "Tokyo Night", "Nord", "Gruvbox Dark", "Catppuccin Mocha", "One Dark", "Solarized Light" }
+  for i = 1, 6 do
+    assert_eq(list[i].id, expected_ids[i], "theme " .. i .. " id must be " .. expected_ids[i])
+    assert_eq(list[i].label, expected_labels[i], "theme " .. i .. " label must be " .. expected_labels[i])
+  end
+
+  assert_true(themes.is_valid("tokyo_night"), "tokyo_night must be a valid theme")
+  assert_true(not themes.is_valid("dracula"), "unknown themes must be invalid")
+  assert_true(not themes.is_valid(42), "non-string ids must be invalid")
+
+  -- Missing settings file defaults to Tokyo Night
+  local path = settings.get_settings_file_path()
+  os.remove(path)
+  settings.reset_cache()
+  local defaults = settings.load(true)
+  assert_eq(defaults.theme, "tokyo_night", "missing theme value must default to Tokyo Night")
+  assert_eq(defaults.show_dotfiles, false, "missing settings must also default show_dotfiles")
+
+  -- Every theme applies without error and restyles the palette highlights
+  local normal_fg_per_theme = {}
+  for _, id in ipairs(expected_ids) do
+    local applied = themes.apply(id)
+    assert_eq(applied.id, id, "apply must apply the requested theme " .. id)
+    local normal = vim.api.nvim_get_hl(0, { name = "Normal" })
+    assert_true(normal.fg ~= nil, id .. " must define Normal foreground")
+    assert_true(normal.bg ~= nil, id .. " must define Normal background")
+    assert_true(vim.api.nvim_get_hl(0, { name = "WorkbenchHeader" }).fg ~= nil, id .. " must define WorkbenchHeader")
+    assert_true(vim.api.nvim_get_hl(0, { name = "diffAdded" }).fg ~= nil, id .. " must define diffAdded")
+    normal_fg_per_theme[id] = normal.fg
+  end
+  assert_eq(vim.o.background, "light", "Solarized Light must switch the background to light")
+  assert_true(normal_fg_per_theme["tokyo_night"] ~= normal_fg_per_theme["nord"], "different themes must produce different palettes")
+
+  -- Unknown ids fall back to Tokyo Night without error
+  local fallback = themes.apply("dracula")
+  assert_eq(fallback.id, "tokyo_night", "unknown theme ids must fall back to Tokyo Night")
+  assert_eq(vim.g.colors_name, "tokyo_night", "colors_name must track the applied theme")
+end
+
+function tests.test_theme_persistence_and_fallback()
+  local settings = require("novim.settings")
+  local themes = require("novim.themes")
+  local path = settings.get_settings_file_path()
+
+  -- Persist both settings, then restore from disk like a fresh launch
+  settings.set("show_dotfiles", true)
+  settings.set("theme", "nord")
+  assert_true(vim.fn.filereadable(path) == 1, "settings file must exist after saving theme")
+  local parsed = vim.json.decode(table.concat(vim.fn.readfile(path), "\n"))
+  assert_eq(parsed.theme, "nord", "saved theme must be nord")
+  assert_eq(parsed.show_dotfiles, true, "saved show_dotfiles must remain true")
+
+  settings.reset_cache()
+  local reloaded = settings.load(true)
+  assert_eq(reloaded.theme, "nord", "theme must persist across launches")
+  assert_eq(reloaded.show_dotfiles, true, "existing dot-folder setting must persist alongside the theme")
+
+  -- Invalid theme value falls back safely WITHOUT clobbering unrelated settings
+  local f = io.open(path, "w")
+  f:write('{"theme": "dracula", "show_dotfiles": true}')
+  f:close()
+  settings.reset_cache()
+  local fallback = settings.load(true)
+  assert_eq(fallback.theme, "tokyo_night", "invalid theme value must fall back to the default")
+  assert_eq(fallback.show_dotfiles, true, "invalid theme must not overwrite the unrelated show_dotfiles setting")
+
+  -- Malformed JSON falls back safely
+  local f2 = io.open(path, "w")
+  f2:write("THIS IS NOT JSON {{{{")
+  f2:close()
+  settings.reset_cache()
+  local malformed = settings.load(true)
+  assert_eq(malformed.theme, "tokyo_night", "malformed settings file must fall back to the default theme")
+
+  -- Non-string theme value falls back safely
+  local f3 = io.open(path, "w")
+  f3:write('{"theme": 42}')
+  f3:close()
+  settings.reset_cache()
+  local wrong_type = settings.load(true)
+  assert_eq(wrong_type.theme, "tokyo_night", "non-string theme value must fall back to the default")
+
+  -- The generic setter refuses invalid themes without touching state
+  local ok, err = settings.set("theme", "dracula")
+  assert_true(ok == false, "setting an unknown theme must fail")
+  assert_true(err ~= nil, "setting an unknown theme must return an error message")
+  assert_eq(settings.get("theme"), "tokyo_night", "rejected theme must not change the current value")
+
+  -- Saving after a fallback rewrites a clean file preserving both settings
+  settings.set("show_dotfiles", false)
+  settings.reset_cache()
+  local after_save = vim.json.decode(table.concat(vim.fn.readfile(path), "\n"))
+  assert_eq(after_save.theme, "tokyo_night", "post-fallback save must write the default theme")
+  assert_eq(after_save.show_dotfiles, false, "post-fallback save must keep the changed show_dotfiles")
+
+  -- Restore clean defaults for the remaining suites
+  settings.set("show_dotfiles", false)
+  settings.set("theme", "tokyo_night")
+  assert_true(themes.is_valid(settings.get("theme")), "restored theme must be valid")
+end
+
+function tests.test_settings_theme_control_cycles_applies_and_persists()
+  local workbench = require("novim.workbench")
+  local settings_ui = require("novim.settings_ui")
+  local themes = require("novim.themes")
+  local settings = require("novim.settings")
+  workbench.close()
+  settings.set("theme", "tokyo_night")
+
+  local fixture = create_project_browser_fixture()
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  workbench.open({ view = "files" })
+  local before_hl = vim.api.nvim_get_hl(0, { name = "WorkbenchHeader" }).fg
+  workbench.open_settings()
+  assert_true(settings_ui.is_open(), "settings panel must open from the workbench")
+
+  -- Cycling forward selects the next catalog entry and re-themes live
+  local ok, err = settings_ui.cycle_theme(1)
+  assert_true(ok, "cycling to the next theme must succeed: " .. tostring(err))
+  assert_eq(settings.get("theme"), "nord", "next theme after Tokyo Night must be Nord")
+  local after_hl = vim.api.nvim_get_hl(0, { name = "WorkbenchHeader" }).fg
+  assert_true(before_hl ~= after_hl, "theme switch must restyle the workbench palette live")
+
+  -- The panel re-renders with the selected theme
+  local text = table.concat(vim.api.nvim_buf_get_lines(settings_ui.get_buf(), 0, -1, false), "\n")
+  assert_true(text:find("Nord", 1, true) ~= nil, "settings panel must display the selected theme name")
+
+  -- Cycling backward wraps around the catalog
+  settings_ui.cycle_theme(-1)
+  assert_eq(settings.get("theme"), "tokyo_night", "previous theme before Tokyo Night must wrap to the default again")
+  settings_ui.cycle_theme(-1)
+  assert_eq(settings.get("theme"), "solarized_light", "previous theme from the default must wrap to Solarized Light")
+
+  -- The selection persists across a simulated fresh launch
+  settings.reset_cache()
+  assert_eq(settings.load(true).theme, "solarized_light", "cycled theme must persist across launches")
+
+  settings_ui.close()
+  workbench.close()
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+
+  settings.set("theme", "tokyo_night")
+  themes.apply("tokyo_night")
+end
+
+function tests.test_settings_panel_key_help_below_controls_matches_mappings()
+  local workbench = require("novim.workbench")
+  local settings_ui = require("novim.settings_ui")
+  local keymaps = require("novim.keymaps")
+  workbench.close()
+
+  local fixture = create_project_browser_fixture()
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  workbench.open({ view = "files" })
+  local st = workbench.get_state()
+  workbench.open_settings()
+  assert_true(settings_ui.is_open(), "settings panel must be open")
+
+  local buf = settings_ui.get_buf()
+  assert_true(buf ~= nil, "settings buffer must be available")
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local text = table.concat(lines, "\n")
+
+  -- Controls render above the key help section
+  local theme_row, help_row
+  for i, line in ipairs(lines) do
+    if line:find("Theme:", 1, true) then theme_row = i end
+    if line:find("Key Bindings (Workbench)", 1, true) then help_row = i end
+  end
+  assert_true(theme_row ~= nil, "settings panel must render the theme control")
+  assert_true(help_row ~= nil, "settings panel must render the key help section")
+  assert_true(help_row > theme_row, "key help must render below the controls")
+
+  -- Every documented entry is visibly present in the panel
+  local documented = {}
+  local function mark_documented(key)
+    for _, spelling in ipairs(lhs_spellings(key)) do
+      documented[spelling] = true
+    end
+  end
+  for _, entry in ipairs(keymaps.workbench) do
+    assert_true(text:find(entry.display, 1, true) ~= nil,
+      "key help must document: " .. entry.display)
+    for _, key in ipairs(entry.keys) do
+      mark_documented(key)
+    end
+  end
+  for _, entry in ipairs(keymaps.settings) do
+    assert_true(text:find(entry.display, 1, true) ~= nil,
+      "settings help must document: " .. entry.display)
+    for _, key in ipairs(entry.keys) do
+      mark_documented(key)
+    end
+  end
+
+  local function key_is_mapped(key, lhs_set)
+    for _, spelling in ipairs(lhs_spellings(key)) do
+      if lhs_set[spelling] then
+        return true
+      end
+    end
+    return false
+  end
+
+  -- Every documented workbench shortcut is backed by a real buffer-local mapping
+  local left_keys = buf_local_lhs(st.buf_left)
+  local right_keys = buf_local_lhs(st.buf_right)
+  for _, entry in ipairs(keymaps.workbench) do
+    for _, key in ipairs(entry.keys) do
+      assert_true(key_is_mapped(key, left_keys) or key_is_mapped(key, right_keys),
+        "documented shortcut must be an actual workbench mapping: " .. key)
+    end
+  end
+
+  -- Reverse direction: every workbench mapping is documented in the help
+  for key in pairs(left_keys) do
+    assert_true(documented[key], "workbench mapping must appear in the key help: " .. key)
+  end
+  for key in pairs(right_keys) do
+    assert_true(documented[key], "workbench mapping must appear in the key help: " .. key)
+  end
+
+  -- The settings panel mappings themselves match their documentation
+  local settings_keys = buf_local_lhs(buf)
+  for _, entry in ipairs(keymaps.settings) do
+    for _, key in ipairs(entry.keys) do
+      assert_true(key_is_mapped(key, settings_keys),
+        "documented settings shortcut must be an actual mapping: " .. key)
+    end
+  end
+
+  settings_ui.close()
+  workbench.close()
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+end
+
+function tests.test_settings_single_esc_close_restores_workbench_focus()
+  local workbench = require("novim.workbench")
+  local settings_ui = require("novim.settings_ui")
+  workbench.close()
+
+  local fixture = create_project_browser_fixture()
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  workbench.open({ view = "files" })
+  local st = workbench.get_state()
+
+  -- One Esc press closes the panel immediately and restores workbench focus
+  workbench.open_settings()
+  assert_true(settings_ui.is_open(), "settings panel must be open")
+  assert_eq(vim.api.nvim_get_current_win(), settings_ui.get_win(), "settings must take focus while open")
+
+  local settings_buf = settings_ui.get_buf()
+  local esc_callback = nil
+  for _, map in ipairs(vim.api.nvim_buf_get_keymap(settings_buf, "n")) do
+    if map.lhs == "<Esc>" then
+      esc_callback = map.callback
+    end
+  end
+  assert_true(esc_callback ~= nil, "Esc must have a single-press close mapping in settings")
+
+  esc_callback()
+  assert_true(not settings_ui.is_open(), "one Esc press must close settings immediately")
+  assert_eq(vim.api.nvim_get_current_win(), st.win_left, "Esc must restore workbench focus")
+
+  -- q remains a direct close action
+  workbench.open_settings()
+  assert_true(settings_ui.is_open(), "settings panel must reopen")
+  settings_buf = settings_ui.get_buf()
+  local q_callback = nil
+  for _, map in ipairs(vim.api.nvim_buf_get_keymap(settings_buf, "n")) do
+    if map.lhs == "q" then
+      q_callback = map.callback
+    end
+  end
+  assert_true(q_callback ~= nil, "q must have a direct close mapping in settings")
+
+  q_callback()
+  assert_true(not settings_ui.is_open(), "q must close settings directly")
+  assert_eq(vim.api.nvim_get_current_win(), st.win_left, "q must restore workbench focus")
+
+  workbench.close()
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+end
+
+function tests.test_pane_drag_both_directions_with_minimum_clamp()
+  local workbench = require("novim.workbench")
+  workbench.close()
+
+  local fixture = create_project_browser_fixture()
+  local old_cwd = vim.fn.getcwd()
+  vim.cmd("cd " .. vim.fn.fnameescape(fixture))
+
+  workbench.open({ view = "files" })
+  local st = workbench.get_state()
+  local total = vim.o.columns
+  local w0 = vim.api.nvim_win_get_width(st.win_left)
+  local sep_col = vim.fn.win_screenpos(st.win_right)[2] - 1
+  assert_true(sep_col > w0, "divider column must sit right of the left pane")
+
+  -- Simulated divider drag: press, drag right, drag left, release
+  workbench.pane_drag_start(sep_col)
+  workbench.pane_drag_move(sep_col + 12)
+  local w_wider = vim.api.nvim_win_get_width(st.win_left)
+  assert_true(w_wider > w0, "dragging the divider right must widen the left pane")
+
+  workbench.pane_drag_move(sep_col - 8)
+  local w_narrower = vim.api.nvim_win_get_width(st.win_left)
+  assert_true(w_narrower < w_wider, "dragging the divider left must narrow the left pane")
+
+  workbench.pane_drag_end()
+  assert_eq(vim.api.nvim_win_get_width(st.win_left), w_narrower, "release must keep the last dragged width")
+
+  -- Stale drag events after release are ignored
+  workbench.pane_drag_move(sep_col + 100)
+  assert_eq(vim.api.nvim_win_get_width(st.win_left), w_narrower, "drag move without an active drag must be a no-op")
+
+  -- Dragging far right clamps so the right pane keeps its minimum width
+  workbench.pane_drag_start(sep_col)
+  workbench.pane_drag_move(total)
+  local max_left = vim.api.nvim_win_get_width(st.win_left)
+  local right_at_max = vim.api.nvim_win_get_width(st.win_right)
+  assert_true(max_left < total, "left pane must clamp before consuming the whole width")
+  assert_true(right_at_max >= 20, "right pane must keep its minimum width at the clamp")
+  assert_true(vim.api.nvim_win_is_valid(st.win_right), "right window must stay valid at the clamp")
+
+  -- Dragging far left clamps at the left pane minimum
+  workbench.pane_drag_move(0)
+  local min_left = vim.api.nvim_win_get_width(st.win_left)
+  assert_true(min_left >= 15, "left pane must keep its minimum width at the clamp")
+  assert_true(vim.api.nvim_win_is_valid(st.win_left), "left window must stay valid at the clamp")
+  workbench.pane_drag_end()
+
+  -- The resize helper clamps invalid targets without raising (no E21)
+  workbench.resize_left_pane(1)
+  assert_true(vim.api.nvim_win_get_width(st.win_left) >= 15, "resize below the minimum must clamp")
+  workbench.resize_left_pane(total * 10)
+  assert_true(vim.api.nvim_win_get_width(st.win_right) >= 20, "resize above the maximum must clamp")
+
+  -- Dragging preserves the selection and navigation behavior
+  workbench.select_file(2)
+  local sel_before = workbench.get_state().selected_project_index
+  workbench.pane_drag_start(sep_col)
+  workbench.pane_drag_move(sep_col + 5)
+  workbench.pane_drag_end()
+  assert_eq(workbench.get_state().selected_project_index, sel_before, "dragging must not change the selection")
+  assert_true(workbench.get_state().is_open, "workbench must remain open after a drag")
+
+  -- The drag mappings back the documented behavior on the left buffer
+  local left_keys = buf_local_lhs(st.buf_left)
+  assert_true(left_keys["<LeftDrag>"] ~= nil, "<LeftDrag> must be mapped for divider dragging")
+  assert_true(left_keys["<LeftRelease>"] ~= nil, "<LeftRelease> must be mapped to end dragging")
+
+  workbench.close()
+  vim.cmd("cd " .. vim.fn.fnameescape(old_cwd))
+  cleanup_dir(fixture)
+end
+
+-- =========================================================================
 -- Run all tests
 -- =========================================================================
 
